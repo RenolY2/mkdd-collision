@@ -73,10 +73,18 @@ class RacetrackCollision(object):
 
 
 if __name__ == "__main__":
-    collision = RacetrackCollision()
+    col = RacetrackCollision()
     with open("mkddcol/babyluigi_course.bco", "rb") as f:
-        collision.load_file(f)
+        col.load_file(f)
 
-    for i in (collision.gridsoffset, collision.trianglesoffset, collision.verticesoffset, collision.unknownoffset):
+    for i in (col.gridsoffset, col.trianglesoffset, col.verticesoffset, col.unknownoffset):
         print(hex(i))
-    print(hex(len(collision._data)))
+    print(hex(len(col._data)))
+
+    print(col.coordinate1_x)
+
+    print(col.coordinate1_z)
+
+    print(col.coordinate2_x)
+
+    print(col.coordinate2_z)

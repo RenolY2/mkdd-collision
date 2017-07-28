@@ -2,10 +2,10 @@ header:
 0x00 4 bytes 0003
 0x04 2 bytes uint16 width of grid?
 0x06 2 bytes uint16 length of grid?
-0x08 4 bytes minimum size of collision? (Converted into float in a weird way ingame)
-0x0C 4 bytes maximum size of collision?  ^
-0x10 4 bytes unknown, always 000003E8?
-0x14 4 bytes unknown, always 000003E8?
+0x08 4 bytes signed int32, x coordinate
+0x0C 4 bytes signed int32, z coordinate
+0x10 4 bytes signed int32, x coordinate
+0x14 4 bytes signed int32, z coordinate
 0x18 2 bytes uint16 entries count?
 0x1A 2 bytes padding? always 0
 0x1C 4 bytes offset into grids
@@ -14,6 +14,7 @@ header:
 0x28 4 bytes offset into ??
 
 header length: 0x2C bytes 
+0x8,0xC and 0x10,0x14 might be two (x,z) corners of the collision model
 
 -----
 at 0x2C grid table starts
