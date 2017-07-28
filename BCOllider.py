@@ -127,3 +127,10 @@ if __name__ == "__main__":
     print(col.coordinate2_z)
 
     print(hex(col.grid_xsize), hex(col.grid_zsize))
+
+    with open("col.obj", "w") as f:
+        for v_x, v_y, v_z in col.vertices:
+            f.write("v {0} {1} {2}\n".format(v_x, v_y, v_z))
+
+        for v1, v2, v3, rest in col.triangles:
+            f.write("f {0} {1} {2}\n".format(v1+1,v2+1,v3+1))
