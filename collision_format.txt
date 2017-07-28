@@ -1,0 +1,44 @@
+header:
+0x00 4 bytes 0003
+0x04 2 bytes uint16 width of grid?
+0x06 2 bytes uint16 length of grid?
+0x08 4 bytes minimum size of collision? (Converted into float in a weird way ingame)
+0x0C 4 bytes maximum size of collision?  ^
+0x10 4 bytes unknown, always 000003E8?
+0x14 4 bytes unknown, always 000003E8?
+0x18 2 bytes uint16 entries count?
+0x1A 2 bytes padding? always 0
+0x1C 4 bytes offset into grids
+0x20 4 bytes offset into triangles 
+0x24 4 bytes offset into vertices
+0x28 4 bytes offset into ??
+
+header length: 0x2C bytes 
+
+-----
+at 0x2C grid table starts
+8 bytes per entry 
+[unknown uint8 (type of entry?)] [unknown uint8] [grid table index uint16] [grid section index uint32]
+
+grid table index points to an entry in the grid table starting at the current entry?
+-----
+
+grid section: 2 bytes per entry? Is multiplied by 0x24 to get offset into triangles 
+
+----- 
+
+triangles: 0x24 bytes per entry 
+
+0x00 4 bytes vertex index 
+0x04 4 bytes vertex index  
+0x08 4 bytes vertex index 
+
+..
+0x18 1 byte flags?
+..
+0x20 1 byte used for position stuff?
+.. 
+
+-----
+
+vertices: 0xC bytes per entry (probably XYZ)
