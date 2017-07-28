@@ -111,7 +111,7 @@ class RacetrackCollision(object):
 
 if __name__ == "__main__":
     col = RacetrackCollision()
-    with open("mkddcol/babyluigi_course.bco", "rb") as f:
+    with open("mkddcol/daisy_course.bco", "rb") as f:
         col.load_file(f)
 
     for i in (col.gridsoffset, col.trianglesoffset, col.verticesoffset, col.unknownoffset):
@@ -127,10 +127,47 @@ if __name__ == "__main__":
     print(col.coordinate2_z)
 
     print(hex(col.grid_xsize), hex(col.grid_zsize))
-
+    additional_verts = []
+    additional_edges = []
+    vertoff = len(col.vertices)
     with open("col.obj", "w") as f:
         for v_x, v_y, v_z in col.vertices:
             f.write("v {0} {1} {2}\n".format(v_x, v_y, v_z))
 
         for v1, v2, v3, rest in col.triangles:
             f.write("f {0} {1} {2}\n".format(v1+1,v2+1,v3+1))
+            weirdfloat = read_float(rest, 0x00)
+            print("--")
+            print(weirdfloat)
+
+            x1,y1,z1 = col.vertices[v1]
+            x2,y2,z2 = col.vertices[v2]
+            x3,y3,z3 = col.vertices[v3]
+
+            midx = (x1+x2+x3)/3.0
+            midy = (y1+y2+y3)/3.0
+            midz = (z1+z2+z3)/3.0
+
+            print(midx, midy, midz, y1, y2, y3)
+
+
+            y4 = y1 + weirdfloat
+            y5 = y2 + weirdfloat
+            y6 = y3 + weirdfloat
+
+            additional_verts.append((x1, y4, z1))
+            additional_verts.append((x2, y5, z2))
+            additional_verts.append((x3, y6, z3))
+            v4, v5, v6 = vertoff+len(additional_verts)-2, vertoff+len(additional_verts)-1, vertoff+len(additional_verts)
+            additional_edges.append((v1+1,v2+1, v5, v4))
+            additional_edges.append((v2+1,v3+1, v6, v5))
+            additional_edges.append((v3+1,v1+1, v4, v6))
+
+        """for v_x,v_y, v_z in additional_verts:
+            f.write("v {0} {1} {2}\n".format(v_x, v_y, v_z))
+
+        for v1, v2, v3, v4 in additional_edges:
+            f.write("f {0} {1} {2} {3}\n".format(v1, v2, v3, v4))"""
+        print(vertoff+len(additional_verts))
+
+        print(additional_edges[-1])
