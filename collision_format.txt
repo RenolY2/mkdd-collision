@@ -4,8 +4,8 @@ header:
 0x06 2 bytes uint16 length of grid?
 0x08 4 bytes signed int32, x coordinate
 0x0C 4 bytes signed int32, z coordinate
-0x10 4 bytes signed int32, x coordinate
-0x14 4 bytes signed int32, z coordinate
+0x10 4 bytes signed(or unsigned) int32, grid cell x size
+0x14 4 bytes signed(or unsigned) int32, grid cell z size
 0x18 2 bytes uint16 entries count?
 0x1A 2 bytes padding? always 0
 0x1C 4 bytes offset into grids
@@ -14,7 +14,8 @@ header:
 0x28 4 bytes offset into ??
 
 header length: 0x2C bytes 
-0x8,0xC and 0x10,0x14 might be two (x,z) corners of the collision model
+0x8,0xC is the smallest coordinate of the level at which the grid starts
+0x10, 0x14 are the sizes of each cell in the grid along the x and z axis
 
 -----
 at 0x2C grid table starts
