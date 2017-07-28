@@ -6,7 +6,7 @@ def read_array(buffer, offset, length):
     return buffer[offset:offset+length]
 
 def read_float(buffer, offset):
-    return unpack_from(">I", buffer, offset)[0]
+    return unpack_from(">f", buffer, offset)[0]
 
 def read_int32(buffer, offset):
     return unpack_from(">i", buffer, offset)[0]
@@ -70,6 +70,43 @@ class RacetrackCollision(object):
         self.verticesoffset = read_uint32(data, 0x24)
         self.unknownoffset = read_uint32(data, 0x28)
 
+        # Parse triangles
+        trianglescount = (self.verticesoffset-self.trianglesoffset) // 0x24
+        print((self.verticesoffset-self.trianglesoffset)%0x24)
+
+        for i in range(trianglescount):
+            v1 = read_int32(data, self.trianglesoffset+i*0x24 + 0x00)
+            v2 = read_int32(data, self.trianglesoffset+i*0x24 + 0x04)
+            v3 = read_int32(data, self.trianglesoffset+i*0x24 + 0x08)
+            rest = read_array(data, self.trianglesoffset+i*0x24 + 0x0C, length=0x24-0xC)
+
+            self.triangles.append((v1,v2,v3,rest))
+
+        # Parse vertices
+        vertcount = (self.unknownoffset-self.verticesoffset) // 0xC
+        print((self.unknownoffset-self.verticesoffset) % 0xC)
+
+        biggestx = biggestz = -99999999
+        smallestx = smallestz = 99999999
+
+        for i in range(vertcount):
+            x = read_float(data, self.verticesoffset + i*0xC + 0x00)
+            y = read_float(data, self.verticesoffset + i*0xC + 0x04)
+            z = read_float(data, self.verticesoffset + i*0xC + 0x08)
+            self.vertices.append((x,y,z))
+
+            if x > biggestx:
+                biggestx = x
+            if x < smallestx:
+                smallestx = x
+
+            if z > biggestz:
+                biggestz = z
+            if z < smallestz:
+                smallestz = z
+            #print(x,y,z)
+        print(biggestx, biggestz, smallestx, smallestz)
+
 
 
 if __name__ == "__main__":
@@ -88,3 +125,5 @@ if __name__ == "__main__":
     print(col.coordinate2_x)
 
     print(col.coordinate2_z)
+
+    print(hex(col.grid_xsize), hex(col.grid_zsize))
