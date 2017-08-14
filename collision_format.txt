@@ -41,7 +41,7 @@ triangles: 0x24 bytes per entry
 0x12 signed short, Y direction of normal vector of length ~1 
 0x14 signed short, Z direction of normal vector of length ~1 
 0x16 ushort collision type 
-0x18 byte, messes with collision if changed
+0x18 ubyte, look-up table for checking which vertex has the biggest and smallest X/Z values. Four 2-bit values ranging from 0 to 2 in this order: [max Z][max X][min Z][min X]
 0x19 byte (always 0x01? Doesn't matter if set to 0)
 0x1A ushort, can be set to 0
 0x1C ushort, can be set to 0
