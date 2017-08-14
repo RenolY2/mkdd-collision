@@ -37,9 +37,9 @@ triangles: 0x24 bytes per entry
 0x04 4 bytes vertex index  
 0x08 4 bytes vertex index 
 0x0C float, appears to be (-1)*(norm_x*mid_x + norm_y+mid_y + norm_z+mid_z) where norm_x/y/z is the normal unit vector of the triangle and mid_x/y/z the middle of the triangle.
-0x10 signed short, X direction of normal vector of length ~1 
-0x12 signed short, Y direction of normal vector of length ~1 
-0x14 signed short, Z direction of normal vector of length ~1 
+0x10 signed short, X direction of normal vector of length ~1 as fixed point decimal (divide by 10000 to get the value)
+0x12 signed short, Y direction of normal vector of length ~1, see above
+0x14 signed short, Z direction of normal vector of length ~1, see above
 0x16 ushort collision type 
 0x18 ubyte, look-up table for checking which vertex has the biggest and smallest X/Z values. Four 2-bit values ranging from 0 to 2 in this order: [max Z][max X][min Z][min X]
 0x19 byte (always 0x01? Doesn't matter if set to 0)
