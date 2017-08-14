@@ -36,7 +36,17 @@ triangles: 0x24 bytes per entry
 0x00 4 bytes vertex index 
 0x04 4 bytes vertex index  
 0x08 4 bytes vertex index 
-0x0C float, affects wall
+0x0C float, affects wall, positioning of triangles?
+0x10 signed short, X direction of normal vector of length ~1 
+0x12 signed short, Y direction of normal vector of length ~1 
+0x14 signed short, Z direction of normal vector of length ~1 
+0x16 ushort collision type 
+0x18 byte, messes with collision if changed
+0x19 byte (always 0x01? Doesn't matter if set to 0)
+0x1A ushort, can be set to 0
+0x1C ushort, can be set to 0
+0x1E ushort, can be set to 0
+0x20-0x24 padding 
 ..
 0x18 1 byte flags?
 ..
