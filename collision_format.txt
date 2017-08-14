@@ -36,7 +36,7 @@ triangles: 0x24 bytes per entry
 0x00 4 bytes vertex index 
 0x04 4 bytes vertex index  
 0x08 4 bytes vertex index 
-0x0C float, affects wall, positioning of triangles?
+0x0C float, appears to be (-1)*(norm_x*mid_x + norm_y+mid_y + norm_z+mid_z) where norm_x/y/z is the normal unit vector of the triangle and mid_x/y/z the middle of the triangle.
 0x10 signed short, X direction of normal vector of length ~1 
 0x12 signed short, Y direction of normal vector of length ~1 
 0x14 signed short, Z direction of normal vector of length ~1 
