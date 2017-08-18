@@ -1,4 +1,4 @@
-# obj2grid.py v0.2.0 by Yoshi2
+# BCOnvert.py v0.1 by Yoshi2
 
 import time
 import argparse
@@ -82,7 +82,7 @@ def read_obj(objfile):
             else:
                 floor_type = 0x100
 
-            print("Found material:", matname, "Using floor type:", hex(floor_type))
+            #print("Found material:", matname, "Using floor type:", hex(floor_type))
 
 
 
@@ -194,16 +194,38 @@ def write_float(f, val):
 
 
 if __name__ == "__main__":
-    with open("mkddcol/test.obj", "r") as f:
-        vertices, triangles, normals, minmax_coords = read_obj(f)
+    parser = argparse.ArgumentParser()
 
+    parser.add_argument("input",
+                        help="Filepath of the wavefront .obj file that will be converted into collision")
+    parser.add_argument("output", default=None, nargs = '?',
+                        help="Output path of the created collision file")
+    parser.add_argument("--cell_size", default=1000, type=int,
+                        help="Size of a single cell in the grid. Bigger size results in smaller grid size but higher amount of triangles in a single cell.")
+
+    args = parser.parse_args()
+    input_model = args.input
+
+    base_dir = os.path.dirname(input_model)
+
+    if args.output is None:
+        output = input_model + ".bco"
+    else:
+        output = args.output
+
+
+    with open(input_model, "r") as f:
+        vertices, triangles, normals, minmax_coords = read_obj(f)
+    print(input_model, "loaded")
     if len(triangles) > 2**16:
-        raise RuntimeError("Too many triangles: {0}\nOnly <=65536 triangles supported!".format(len(trianglex)))
+        raise RuntimeError("Too many triangles: {0}\nOnly <=65536 triangles supported!".format(len(triangles)))
 
     smallest_x, smallest_z, biggest_x, biggest_z = minmax_coords
 
-    cell_size_x = 1000.0
-    cell_size_z = 1000.0
+    assert args.cell_size > 0
+
+    cell_size_x = args.cell_size #1000.0
+    cell_size_z = args.cell_size #1000.0
 
 
     grid_start_x = floor(smallest_x / cell_size_x) * cell_size_x
@@ -226,7 +248,7 @@ if __name__ == "__main__":
 
     grid = []
     children = []
-
+    print("calculating grid")
     for iz in range(grid_size_z):
         print("progress:",iz, "/",grid_size_z)
         for ix in range(grid_size_x):
@@ -241,17 +263,18 @@ if __name__ == "__main__":
                 v3 = vertices[v3_index[0]-1]
 
                 if collides(v1, v2, v3,
-                            grid_start_x + ix*cell_size_x, #+box_size_x//2,
-                            grid_start_z + iz*cell_size_z, #+box_size_z//2,
+                            grid_start_x + ix*cell_size_x + cell_size_x//2,
+                            grid_start_z + iz*cell_size_z + cell_size_x//2,
                             cell_size_x,
                             cell_size_z):
 
                     collided.append((i, face))
 
             grid.append(collided)
+    print("grid calculated")
+    print("writing bco file")
 
-    #with open("custom_col.bco", "wb") as f:
-    with open("H:\\Games\\Nintendo Modding\\MarioKartDD\\Course\\luigi2\\luigi_course.bco", "wb") as f:
+    with open(output, "wb") as f:
         f.write(b"0003")
         write_ushort(f, grid_size_x)
         write_ushort(f, grid_size_z)
@@ -289,16 +312,16 @@ if __name__ == "__main__":
 
             indices_stored += tricount
             groups.append(entry)
-
+        print("written grid")
         tri_indices_offset = f.tell()
 
         for trianglegroup in groups:
             for triangle_index, triangle in trianglegroup:
                 write_ushort(f, triangle_index)
-
+        print("written triangle indices")
         tri_offset = f.tell()
 
-        for triangle in triangles:
+        for i, triangle in enumerate(triangles):
             v1_index, v1_normindex = triangle[0]
             v2_index, v2_normindex = triangle[1]
             v3_index, v3_normindex = triangle[2]
@@ -315,15 +338,18 @@ if __name__ == "__main__":
             v3tov1 = create_vector(v3,v1)
             v1tov3 = create_vector(v1,v3)
 
+
             cross_norm = cross_product(v1tov2, v1tov3)
+
             if cross_norm[0] == cross_norm[1] == cross_norm[2] == 0.0:
                 norm = cross_norm
+                print("norm calculation failed")
             else:
                 norm = normalize_vector(cross_norm)
 
-            norm_x = int(norm[0] * 10000)
-            norm_y = int(norm[1] * 10000)
-            norm_z = int(norm[2] * 10000)
+            norm_x = int(round(norm[0], 4) * 10000)
+            norm_y = int(round(norm[1], 4) * 10000)
+            norm_z = int(round(norm[2], 4) * 10000)
 
             midx = (v1[0]+v2[0]+v3[0])/3.0
             midy = (v1[1]+v2[1]+v3[1])/3.0
@@ -340,9 +366,8 @@ if __name__ == "__main__":
             assert vlist[max_x][0] == max(v1[0], v2[0], v3[0])
             assert vlist[max_z][2] == max(v1[2], v2[2], v3[2])
 
-
-
             start = f.tell()
+
             write_uint32(f, v1_index-1)
             write_uint32(f, v2_index-1)
             write_uint32(f, v3_index-1)
@@ -365,12 +390,12 @@ if __name__ == "__main__":
             end = f.tell()
             assert (end-start) == 0x24
         vertex_offset = f.tell()
-
+        print("written triangle data")
         for x, y, z in vertices:
             write_float(f, x)
             write_float(f, y)
             write_float(f, z)
-
+        print("written vertices")
         unknown_offset = f.tell()
 
         f.seek(0x1C)
@@ -380,4 +405,4 @@ if __name__ == "__main__":
         write_uint32(f, vertex_offset) # vertices offset
         write_uint32(f, unknown_offset) # unknown section offset
 
-    subprocess.call(["H:\\Games\\Nintendo Modding\\MarioKartDD\\Course\\ArcPack.exe", "H:\\Games\\Nintendo Modding\\MarioKartDD\\Course\\luigi2"])
+    print("done, file written to", output)
