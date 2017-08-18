@@ -1,6 +1,7 @@
 # Python 3 necessary
 
-from struct import unpack_from
+import subprocess
+from struct import unpack_from, pack
 
 def read_array(buffer, offset, length):
     return buffer[offset:offset+length]
@@ -33,8 +34,8 @@ class RacetrackCollision(object):
         self.entrycount = 0
         self.padding = 0
 
-        self.gridtableoffset = 0
-        self.gridsoffset = 0
+        self.gridtable_offset = 0
+        self.triangles_indices_offset = 0
         self.trianglesoffset = 0
         self.verticesoffset = 0
         self.unknownoffset = 0
@@ -58,14 +59,14 @@ class RacetrackCollision(object):
 
         self.coordinate1_x = read_int32(data, 0x8)
         self.coordinate1_z = read_int32(data, 0xC)
-        self.coordinate2_x = read_int32(data, 0x10)
-        self.coordinate2_z = read_int32(data, 0x14)
+        self.gridcell_xsize = read_int32(data, 0x10)
+        self.gridcell_zsize = read_int32(data, 0x14)
 
         self.entrycount = read_uint16(data, 0x18)
         self.padding = read_uint16(data, 0x1A)
 
-        self.gridtableoffset = 0x2C
-        self.gridsoffset = read_uint32(data, 0x1C)
+        self.gridtable_offset = 0x2C
+        self.triangles_indices_offset = read_uint32(data, 0x1C)
         self.trianglesoffset = read_uint32(data, 0x20)
         self.verticesoffset = read_uint32(data, 0x24)
         self.unknownoffset = read_uint32(data, 0x28)
@@ -105,69 +106,158 @@ class RacetrackCollision(object):
             if z < smallestz:
                 smallestz = z
             #print(x,y,z)
-        print(biggestx, biggestz, smallestx, smallestz)
+        print("smallest/smallest vertex coordinates:",smallestx, smallestz, biggestx, biggestz)
 
 
+def read_gridtable_entry(data, offset):
+    unk1 = read_uint8(data, offset+0)
+    unk2 = read_uint8(data, offset+1)
+    gridtableindex = read_uint16(data, offset+2)
+    triangleindices_index = read_int32(data, offset+4)
+
+    return unk1, unk2, gridtableindex, triangleindices_index
+
+def get_grid_entries(data, index, offset, limit, f, indent, gottem):
+    unk1, unk2, nextindex, triangleindex_offset = read_gridtable_entry(data, offset)
+    f.write("{0}index: {1}| {2} {3} {4} {5}\n".format(indent*4*" ", index, unk1, unk2, nextindex, triangleindex_offset))
+
+    if nextindex != 0:
+        for i in range(4):
+            offset = 0x2C + (nextindex+i)*8
+
+            assert offset < limit
+            gottem[nextindex+i] = True
+            get_grid_entries(data, nextindex+i, offset, limit, f, indent+1, gottem)
 
 if __name__ == "__main__":
     col = RacetrackCollision()
     with open("mkddcol/daisy_course.bco", "rb") as f:
         col.load_file(f)
-
-    for i in (col.gridsoffset, col.trianglesoffset, col.verticesoffset, col.unknownoffset):
-        print(hex(i))
+    for i in (col.triangles_indices_offset, col.trianglesoffset, col.verticesoffset, col.unknownoffset):
+        print(hex(i), i)
     print(hex(len(col._data)))
 
-    print(col.coordinate1_x)
-
-    print(col.coordinate1_z)
-
-    print(col.coordinate2_x)
-
-    print(col.coordinate2_z)
-
-    print(hex(col.grid_xsize), hex(col.grid_zsize))
+    print("grid start:", col.coordinate1_x, col.coordinate1_z)
+    print("cell size:", col.gridcell_xsize, col.gridcell_zsize)
+    print("grid end:",
+          col.coordinate1_x + col.grid_xsize*col.gridcell_xsize,
+          col.coordinate1_z + col.grid_zsize*col.gridcell_zsize)
+    #print(hex(col.grid_xsize), hex(col.grid_zsize))
     additional_verts = []
     additional_edges = []
     vertoff = len(col.vertices)
-    with open("col.obj", "w") as f:
-        for v_x, v_y, v_z in col.vertices:
-            f.write("v {0} {1} {2}\n".format(v_x, v_y, v_z))
 
+    print(col.gridtable_offset)
+
+    maxsize = col.grid_xsize*col.grid_zsize
+    total_gridentries = (col.triangles_indices_offset - 0x2C) / 8.0
+    print(maxsize, "possible entries:", total_gridentries)
+
+    gottem = {}
+    for i in range(int(total_gridentries)):
+        gottem[i] = False
+
+    entries = 0
+
+    with open("grid_data.txt", "w") as f:
+        f.write("{0} {1} max index: {2}\n\n".format(col.grid_xsize, col.grid_zsize, col.grid_xsize*col.grid_zsize))
+
+
+        for z in range(col.grid_zsize):
+            for x in range(col.grid_xsize):
+                index = col.grid_xsize * z + x
+                baseindex = index
+                gottem[index] = True
+                #index = col.grid_xsize * z + x
+
+                offset = 0x2C + index*8
+                f.write("{0}:{1}\n".format(x,z))
+                get_grid_entries(col._data, index, offset, col.triangles_indices_offset, f, 0, gottem)
+                #unk1, unk2, nextindex, triangleindex_offset = read_gridtable_entry(col._data, offset)
+                #followup = 1
+                #f.write("{0}:{1} index: {2}| {3} {4} {5} {6}\n".format(x, z, index, unk1, unk2, nextindex, triangleindex_offset))
+
+                #if nextindex != 0:
+                #    for i in range(4):
+                #        offset = 0x2C + (nextindex+i)*8
+                #        assert offset < col.triangles_indices_offset
+
+                """while nextindex != 0:
+                    gottem[nextindex] = True
+                    #print(nextindex, "hm")
+                    index = nextindex
+                    offset = 0x2C + (index)*8
+                    assert offset < col.triangles_indices_offset
+
+                    unk1, unk2, nextindex, triangleindex_offset = read_gridtable_entry(col._data, offset)
+                    followup += 1
+                    f.write("->{0}:{1} index: {2}| {3} {4} {5} {6}\n".format(x, z, index, unk1, unk2, nextindex, triangleindex_offset))
+
+                entries += followup"""
+
+                f.write("\n\n")
+
+                assert offset < col.triangles_indices_offset
+    print("")
+    u = 0
+    a = 0
+    for i, v in gottem.items():
+        if v is False:
+            #print("didn't get", i)
+            u += 1
+            offset = 0x2C + i*8
+
+            data = read_uint32(col._data, offset)
+            data2 = read_uint32(col._data, offset+4)
+            if read_uint8(col._data, offset+1) != 0:
+                print("THIS IS RARE", offset)
+            if data != 0 or data2 != 0:
+                a += 1
+    print(u, a, len(gottem))
+
+
+    assert 0x2C + total_gridentries*8 == col.triangles_indices_offset
+
+    with open("H:\\Games\\Nintendo Modding\\MarioKartDD\\Course\\luigi2\\luigi_course.bco", "wb") as f:
+        f.write(col._data[:col.trianglesoffset])
+        replace = 0x18
         for v1, v2, v3, rest in col.triangles:
-            f.write("f {0} {1} {2}\n".format(v1+1,v2+1,v3+1))
-            weirdfloat = read_float(rest, 0x00)
-            print("--")
-            print(weirdfloat)
+            f.write(pack(">III", v1, v2, v3))
+            floatval = read_float(rest, 0x00)
 
-            x1,y1,z1 = col.vertices[v1]
-            x2,y2,z2 = col.vertices[v2]
-            x3,y3,z3 = col.vertices[v3]
+            #f.write(pack(">f", floatval-200))
+            f.write(rest[:replace-0xC])
+            #f.write(rest[:0xA])
+            #f.write(b"\x00"*2)
+            #f.write(b"\x00"*10)
+            #f.write(pack("B", 6))
+            normx, normy, normz = map(lambda x: x/10000.0, unpack_from(">hhh", rest, 0x4))
+            #print("---")
+            v1x, v1y, v1z = col.vertices[v1]
+            v2x, v2y, v2z = col.vertices[v2]
+            v3x, v3y, v3z = col.vertices[v3]
 
-            midx = (x1+x2+x3)/3.0
-            midy = (y1+y2+y3)/3.0
-            midz = (z1+z2+z3)/3.0
 
-            print(midx, midy, midz, y1, y2, y3)
+            midx = (v1x+v2x+v3x)/3.0
+            midy = (v1y+v2y+v3y)/3.0
+            midz = (v1z+v2z+v3z)/3.0
+            #print(normx, normy, normz)
+            #print(midx*normx+midy*normy+midz*normz)
 
+            #print(floatval)
+            vertices = [col.vertices[v1], col.vertices[v2], col.vertices[v3]]
+            val = rest[0x18-0xC] # Get byte at 0x18
+            max_z, max_x, min_z, min_x= ((val>>6)&0b11, (val>>4)&0b11,(val>>2)&0b11, val&0b11)
+            #print(min(v1x,v2x,v3x),     min(v1z,v2z,v3z), max(v1x,v2x,v3x), max(v1z,v2z,v3z))
+            #print(vertices[min_x][0],   vertices[min_z][2], vertices[max_x][0], vertices[max_z][2])
 
-            y4 = y1 + weirdfloat
-            y5 = y2 + weirdfloat
-            y6 = y3 + weirdfloat
+            f.write(pack("B", rest[0x18-0xC]))
 
-            additional_verts.append((x1, y4, z1))
-            additional_verts.append((x2, y5, z2))
-            additional_verts.append((x3, y6, z3))
-            v4, v5, v6 = vertoff+len(additional_verts)-2, vertoff+len(additional_verts)-1, vertoff+len(additional_verts)
-            additional_edges.append((v1+1,v2+1, v5, v4))
-            additional_edges.append((v2+1,v3+1, v6, v5))
-            additional_edges.append((v3+1,v1+1, v4, v6))
+            #f.write(pack(">H", 0x00))
+            #f.write(rest[0xA:0xC])
+            f.write(rest[(replace+1)-0xC:])
 
-        """for v_x,v_y, v_z in additional_verts:
-            f.write("v {0} {1} {2}\n".format(v_x, v_y, v_z))
+            #f.write(rest)
+        f.write(col._data[col.verticesoffset:])
 
-        for v1, v2, v3, v4 in additional_edges:
-            f.write("f {0} {1} {2} {3}\n".format(v1, v2, v3, v4))"""
-        print(vertoff+len(additional_verts))
-
-        print(additional_edges[-1])
+    subprocess.call(["H:\\Games\\Nintendo Modding\\MarioKartDD\\Course\\ArcPack.exe", "H:\\Games\\Nintendo Modding\\MarioKartDD\\Course\\luigi2"])
