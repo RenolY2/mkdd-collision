@@ -38,8 +38,10 @@ def read_obj(objfile):
         cmd = args[0]
 
         if cmd == "v":
-            if "" in args:
+            #print(args)
+            for i in range(args.count("")):
                 args.remove("")
+
             x,y,z = map(float, args[1:4])
             vertices.append((x,y,z))
 
@@ -257,19 +259,21 @@ if __name__ == "__main__":
 
             for i, face in enumerate(triangles):
                 v1_index, v2_index, v3_index, floor_type = face
-
+                assert (v1_index[0]-1) >= 0 and (v2_index[0]-1) >= 0 and (v3_index[0]-1) >= 0
                 v1 = vertices[v1_index[0]-1]
                 v2 = vertices[v2_index[0]-1]
                 v3 = vertices[v3_index[0]-1]
 
                 if collides(v1, v2, v3,
                             grid_start_x + ix*cell_size_x + cell_size_x//2,
-                            grid_start_z + iz*cell_size_z + cell_size_x//2,
-                            cell_size_x,
-                            cell_size_z):
+                            grid_start_z + iz*cell_size_z + cell_size_z//2,
+                            cell_size_x*3,
+                            cell_size_z*3):
 
                     collided.append((i, face))
-
+            collided.sort(key=lambda entry: (vertices[entry[1][0][0]-1][1]+
+                                            vertices[entry[1][1][0]-1][1]+
+                                            vertices[entry[1][2][0]-1][1])/3.0, reverse=True)
             grid.append(collided)
     print("grid calculated")
     print("writing bco file")
@@ -312,6 +316,7 @@ if __name__ == "__main__":
 
             indices_stored += tricount
             groups.append(entry)
+
         print("written grid")
         tri_indices_offset = f.tell()
 
@@ -320,6 +325,29 @@ if __name__ == "__main__":
                 write_ushort(f, triangle_index)
         print("written triangle indices")
         tri_offset = f.tell()
+
+
+        neighbours = {}
+        for i, triangle in enumerate(triangles):
+            v1_index, v1_normindex = triangle[0]
+            v2_index, v2_normindex = triangle[1]
+            v3_index, v3_normindex = triangle[2]
+
+            indices = [v1_index, v2_index, v3_index] # sort the indices to always have them in the same order
+            indices.sort()
+
+            if i == 0xFFFF:
+                print("Warning: Your collision has a triangle with index 0xFFFF. "
+                      "This might cause unintended side effects related to that specific triangle.")
+
+            """for edge in ((indices[0], indices[1]), (indices[1], indices[2]), (indices[2], indices[0])):
+                if edge not in neighbours:
+                    neighbours[edge] = [i]
+                elif len(neighbours[edge]) == 1:
+                    neighbours[edge].append(i)
+                else:
+                    print("Warning: Edge {0} already has neighbours {1}, but there is an additional "
+                          "neighbour {2} that will be ignored.".format(edge, neighbours[edge], i))"""
 
         for i, triangle in enumerate(triangles):
             v1_index, v1_normindex = triangle[0]
@@ -340,6 +368,7 @@ if __name__ == "__main__":
 
 
             cross_norm = cross_product(v1tov2, v1tov3)
+            #cross_norm = cross_product(v1tov2, v1tov3)
 
             if cross_norm[0] == cross_norm[1] == cross_norm[2] == 0.0:
                 norm = cross_norm
@@ -355,7 +384,7 @@ if __name__ == "__main__":
             midy = (v1[1]+v2[1]+v3[1])/3.0
             midz = (v1[2]+v2[2]+v3[2])/3.0
 
-            floatval = (-1)*(norm[0] * midx + norm[1] * midy + norm[2] * midz)
+            floatval = (-1)*(round(norm[0], 4) * midx + round(norm[1], 4) * midy + round(norm[2], 4) * midz)
 
             min_x, min_z, max_x, max_z = calc_lookuptable(v1, v2, v3)
 
@@ -365,6 +394,24 @@ if __name__ == "__main__":
 
             assert vlist[max_x][0] == max(v1[0], v2[0], v3[0])
             assert vlist[max_z][2] == max(v1[2], v2[2], v3[2])
+
+            indices = [v1_index, v2_index, v3_index] # sort the indices to always have them in the same order
+            indices.sort()
+
+            """local_neighbours = []
+            for edge in ((indices[0], indices[1]), (indices[1], indices[2]), (indices[2], indices[0])):
+                if edge in neighbours:
+                    neighbour = neighbours[edge]
+                    if len(neighbour) == 1:
+                        local_neighbours.append(0xFFFF)
+                    elif i == neighbour[0] and (floor_type & 0xFF00) == (triangles[neighbour[1]][3] & 0xFF00):
+                        local_neighbours.append(neighbour[1])
+                    elif i == neighbour[1] and (floor_type & 0xFF00) == (triangles[neighbour[0]][3] & 0xFF00):
+                        local_neighbours.append(neighbour[0])
+                    else:
+                        local_neighbours.append(0xFFFF)
+                else:
+                    local_neighbours.append(0xFFFF)"""
 
             start = f.tell()
 
@@ -378,14 +425,14 @@ if __name__ == "__main__":
             write_short(f, norm_y)
             write_short(f, norm_z)
 
-            write_ushort(f, floor_type)
+            write_ushort(f,floor_type)
 
             write_byte(f, (max_z << 6) | (max_x << 4) | (min_z << 2) | min_x) # Lookup table for min/max values
             write_byte(f, 0x01) # Unknown
 
-            write_ushort(f, 0x0000) # Unknown, can be set to 0
-            write_ushort(f, 0x0000) # Unknown, can be set to 0
-            write_ushort(f, 0x0000) # Unknown, can be set to 0
+            write_ushort(f, 0xFFFF)#local_neighbours[0]) # Triangle index, 0xFFFF means no triangle reference
+            write_ushort(f, 0xFFFF)#local_neighbours[1]) # Triangle index
+            write_ushort(f, 0xFFFF)#local_neighbours[2]) # Triangle index
             write_uint32(f, 0x00000000) # Unknown, padding or value that can be set to 0
             end = f.tell()
             assert (end-start) == 0x24
