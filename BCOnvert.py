@@ -8,6 +8,7 @@ from re import match
 from struct import pack, unpack
 from math import floor, ceil
 
+
 def read_vertex(v_data):
     split = v_data.split("/")
     if len(split) == 3:
@@ -16,6 +17,7 @@ def read_vertex(v_data):
         vnormal = None
     v = int(split[0])
     return v, vnormal
+
 
 def read_obj(objfile):
 
@@ -92,6 +94,7 @@ def read_obj(objfile):
     #objects.append((current_object, vertices, faces))
     return vertices, faces, normals, (smallest_x, smallest_z, biggest_x, biggest_z)
 
+
 def collides(face_v1, face_v2, face_v3, box_mid_x, box_mid_z, box_size_x, box_size_z):
     min_x = min(face_v1[0], face_v2[0], face_v3[0]) - box_mid_x
     max_x = max(face_v1[0], face_v2[0], face_v3[0]) - box_mid_x
@@ -109,6 +112,7 @@ def collides(face_v1, face_v2, face_v3, box_mid_x, box_mid_z, box_size_x, box_si
 
     return True
 
+
 def calc_middle(vertices, v1, v2, v3):
     x1, y1, z1 = vertices[v1]
     x2, y2, z2 = vertices[v2]
@@ -116,18 +120,22 @@ def calc_middle(vertices, v1, v2, v3):
 
     return (x1+x2+x3)/3.0, (y1+y2+y3)/3.0, (z1+z2+z3)/3.0
 
+
 def calc_middle_of_2(vertices, v1, v2):
     x1, y1, z1 = vertices[v1]
     x2, y2, z2 = vertices[v2]
 
     return (x1+x2)/2.0, (y1+y2)/2.0, (z1+z2)/2.0
 
+
 def normalize_vector(v1):
     n = (v1[0]**2 + v1[1]**2 + v1[2]**2)**0.5
     return v1[0]/n, v1[1]/n, v1[2]/n
 
+
 def create_vector(v1, v2):
     return v2[0]-v1[0],v2[1]-v1[1],v2[2]-v1[2]
+
 
 def cross_product(v1, v2):
     cross_x = v1[1]*v2[2] - v1[2]*v2[1]
@@ -135,8 +143,9 @@ def cross_product(v1, v2):
     cross_z = v1[0]*v2[1] - v1[1]*v2[0]
     return cross_x, cross_y, cross_z
 
+
 def calc_lookuptable(v1, v2, v3):
-    min_x = min_y = max_x = max_z = None
+    min_x = min_z = max_x = max_z = None
 
     if v1[0] <= v2[0] and v1[0] <= v3[0]:
         min_x = 0
@@ -168,31 +177,110 @@ def calc_lookuptable(v1, v2, v3):
 
     return min_x, min_z, max_x, max_z
 
+
 def read_int(f):
     val = f.read(0x4)
     return unpack(">I", val)[0]
+
 
 def read_float_tripple(f):
     val = f.read(0xC)
     return unpack(">fff", val)
 
+
 def write_uint32(f, val):
     f.write(pack(">I", val))
+
 
 def write_int32(f, val):
     f.write(pack(">i", val))
 
+
 def write_ushort(f, val):
     f.write(pack(">H", val))
+
 
 def write_short(f, val):
     f.write(pack(">h", val))
 
+
 def write_byte(f, val):
     f.write(pack("B", val))
 
+
 def write_float(f, val):
     f.write(pack(">f", val))
+
+
+def subdivide_grid(minx, minz,
+                   gridx_start, gridx_end, gridz_start, gridz_end,
+                   cell_size, triangles, vertices, result):
+    # print("Subdivision with", gridx_start, gridz_start, gridx_end, gridz_end, (gridx_start+gridx_end) // 2, (gridz_start+gridz_end) // 2)
+    if gridx_start == gridx_end - 1 and gridz_start == gridz_end - 1:
+        if gridx_start not in result:
+            result[gridx_start] = {}
+        result[gridx_start][gridz_start] = triangles
+
+        return True
+
+    assert gridx_end > gridx_start or gridz_end > gridz_start
+
+    halfx = (gridx_start + gridx_end) // 2
+    halfz = (gridz_start + gridz_end) // 2
+
+    quadrants = (
+        [], [], [], []
+    )
+    # x->
+    # 2 3 ^
+    # 0 1 z
+    coordinates = (
+        (0, gridx_start, halfx, gridz_start, halfz),  # Quadrant 0
+        (1, halfx, gridx_end, gridz_start, halfz),  # Quadrant 1
+        (2, gridx_start, halfx, halfz, gridz_end),  # Quadrant 2
+        (3, halfx, gridx_end, halfz, gridz_end)  # Quadrant 3
+    )
+    skip = []
+    if gridx_start == halfx:
+        skip.append(0)
+        skip.append(2)
+    if halfx == gridx_end:
+        skip.append(1)
+        skip.append(3)
+    if gridz_start == halfz:
+        skip.append(0)
+        skip.append(1)
+    if halfz == gridz_end:
+        skip.append(2)
+        skip.append(3)
+
+    for i, face in triangles:
+        v1_index, v2_index, v3_index = face
+
+        v1 = vertices[v1_index[0] - 1]
+        v2 = vertices[v2_index[0] - 1]
+        v3 = vertices[v3_index[0] - 1]
+
+        for quadrant, startx, endx, startz, endz in coordinates:
+            if quadrant not in skip:
+                area_size_x = (endx - startx) * cell_size
+                area_size_z = (endz - startz) * cell_size
+
+                if collides(v1, v2, v3,
+                            minx + startx * cell_size + area_size_x // 2,
+                            minz + startz * cell_size + area_size_z // 2,
+                            area_size_x,
+                            area_size_z):
+                    # print(i, "collided")
+                    quadrants[quadrant].append((i, face))
+
+    for quadrant, startx, endx, startz, endz in coordinates:
+        # print("Doing subdivision, skipping:", skip)
+        if quadrant not in skip:
+            # print("doing subdivision with", coordinates[quadrant])
+            subdivide_grid(minx, minz,
+                           startx, endx, startz, endz,
+                           cell_size, quadrants[quadrant], vertices, result)
 
 
 if __name__ == "__main__":
@@ -248,10 +336,10 @@ if __name__ == "__main__":
     grid_size_x = int(grid_size_x)
     grid_size_z = int(grid_size_z)
 
-    grid = []
+    grid = {}
     children = []
     print("calculating grid")
-    for iz in range(grid_size_z):
+    """for iz in range(grid_size_z):
         print("progress:",iz, "/",grid_size_z)
         for ix in range(grid_size_x):
 
@@ -274,7 +362,12 @@ if __name__ == "__main__":
             collided.sort(key=lambda entry: (vertices[entry[1][0][0]-1][1]+
                                             vertices[entry[1][1][0]-1][1]+
                                             vertices[entry[1][2][0]-1][1])/3.0, reverse=True)
-            grid.append(collided)
+            grid.append(collided)"""
+    triangles_indexed = ((i, face[:3]) for i, face in enumerate(triangles))
+    subdivide_grid(grid_start_x, grid_start_z,
+                   0, grid_size_x, 0, grid_size_z, cell_size_x,
+                   triangles_indexed, vertices,
+                   grid)
     print("grid calculated")
     print("writing bco file")
 
@@ -304,18 +397,22 @@ if __name__ == "__main__":
 
         indices_stored = 0
 
-        for entry in grid:
-            tricount = len(entry)
-            if tricount >= 120:
-                raise RuntimeError("Too many triangles in one spot:", tricount)
+        #for entry in grid:
+        for iz in range(grid_size_z):
+            print("progress:",iz+1, "/",grid_size_z)
+            for ix in range(grid_size_x):
+                entry = grid[ix][iz]
+                tricount = len(entry)
+                if tricount >= 120:
+                    raise RuntimeError("Too many triangles in one spot:", tricount)
 
-            write_byte(f, tricount)
-            write_byte(f, 0x00)
-            write_ushort(f, 0x0000)
-            write_uint32(f, indices_stored)
+                write_byte(f, tricount)
+                write_byte(f, 0x00)
+                write_ushort(f, 0x0000)
+                write_uint32(f, indices_stored)
 
-            indices_stored += tricount
-            groups.append(entry)
+                indices_stored += tricount
+                groups.append(entry)
 
         print("written grid")
         tri_indices_offset = f.tell()
@@ -427,15 +524,16 @@ if __name__ == "__main__":
 
             write_ushort(f,floor_type)
 
-            write_byte(f, (max_z << 6) | (max_x << 4) | (min_z << 2) | min_x) # Lookup table for min/max values
-            write_byte(f, 0x01) # Unknown
+            write_byte(f, (max_z << 6) | (max_x << 4) | (min_z << 2) | min_x)  # Lookup table for min/max values
+            write_byte(f, 0x01)  # Unknown
 
-            write_ushort(f, 0xFFFF)#local_neighbours[0]) # Triangle index, 0xFFFF means no triangle reference
-            write_ushort(f, 0xFFFF)#local_neighbours[1]) # Triangle index
-            write_ushort(f, 0xFFFF)#local_neighbours[2]) # Triangle index
-            write_uint32(f, 0x00000000) # Unknown, padding or value that can be set to 0
+            write_ushort(f, 0xFFFF)  #local_neighbours[0]) # Triangle index, 0xFFFF means no triangle reference
+            write_ushort(f, 0xFFFF)  #local_neighbours[1]) # Triangle index
+            write_ushort(f, 0xFFFF)  #local_neighbours[2]) # Triangle index
+            write_uint32(f, 0x00000000)  # Unknown, padding or value that can be set to 0
             end = f.tell()
             assert (end-start) == 0x24
+
         vertex_offset = f.tell()
         print("written triangle data")
         for x, y, z in vertices:
@@ -447,9 +545,9 @@ if __name__ == "__main__":
 
         f.seek(0x1C)
 
-        write_uint32(f, tri_indices_offset) # Triangle indices offset
-        write_uint32(f, tri_offset) # triangles offset
-        write_uint32(f, vertex_offset) # vertices offset
-        write_uint32(f, unknown_offset) # unknown section offset
+        write_uint32(f, tri_indices_offset)  # Triangle indices offset
+        write_uint32(f, tri_offset)  # triangles offset
+        write_uint32(f, vertex_offset)  # vertices offset
+        write_uint32(f, unknown_offset)  # unknown section offset
 
     print("done, file written to", output)
