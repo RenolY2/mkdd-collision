@@ -11,16 +11,15 @@ from math import floor, ceil
 
 def read_vertex(v_data):
     split = v_data.split("/")
-    if len(split) == 3:
-        vnormal = int(split[2])
-    else:
-        vnormal = None
+    #if len(split) == 3:
+    #    vnormal = int(split[2])
+    #else:
+    #    vnormal = None
     v = int(split[0])
-    return v, vnormal
+    return v#, vnormal
 
 
 def read_obj(objfile):
-
     vertices = []
     faces = []
     face_normals = []
@@ -68,7 +67,7 @@ def read_obj(objfile):
                 raise RuntimeError("Model needs to be triangulated! Only faces with 3 vertices are supported.")
             v1, v2, v3 = map(read_vertex, args[1:4])
 
-            faces.append((v1,v2,v3, floor_type))
+            faces.append((v1, v2, v3, floor_type))
 
         elif cmd == "vn":
             nx,ny,nz = map(float, args[1:4])
@@ -87,9 +86,6 @@ def read_obj(objfile):
                 floor_type = 0x100
 
             #print("Found material:", matname, "Using floor type:", hex(floor_type))
-
-
-
 
     #objects.append((current_object, vertices, faces))
     return vertices, faces, normals, (smallest_x, smallest_z, biggest_x, biggest_z)
@@ -257,9 +253,9 @@ def subdivide_grid(minx, minz,
     for i, face in triangles:
         v1_index, v2_index, v3_index = face
 
-        v1 = vertices[v1_index[0] - 1]
-        v2 = vertices[v2_index[0] - 1]
-        v3 = vertices[v3_index[0] - 1]
+        v1 = vertices[v1_index - 1]
+        v2 = vertices[v2_index - 1]
+        v3 = vertices[v3_index - 1]
 
         for quadrant, startx, endx, startz, endz in coordinates:
             if quadrant not in skip:
@@ -339,30 +335,13 @@ if __name__ == "__main__":
     grid = {}
     children = []
     print("calculating grid")
-    """for iz in range(grid_size_z):
-        print("progress:",iz, "/",grid_size_z)
-        for ix in range(grid_size_x):
 
-            collided = []
+    def calc_average_height(face):
+        return (vertices[face[0] - 1][1]+
+                vertices[face[1] - 1][1]+
+                vertices[face[2] - 1][1])/3.0
+    triangles.sort(key=calc_average_height, reverse=True)
 
-            for i, face in enumerate(triangles):
-                v1_index, v2_index, v3_index, floor_type = face
-                assert (v1_index[0]-1) >= 0 and (v2_index[0]-1) >= 0 and (v3_index[0]-1) >= 0
-                v1 = vertices[v1_index[0]-1]
-                v2 = vertices[v2_index[0]-1]
-                v3 = vertices[v3_index[0]-1]
-
-                if collides(v1, v2, v3,
-                            grid_start_x + ix*cell_size_x + cell_size_x//2,
-                            grid_start_z + iz*cell_size_z + cell_size_z//2,
-                            cell_size_x*3,
-                            cell_size_z*3):
-
-                    collided.append((i, face))
-            collided.sort(key=lambda entry: (vertices[entry[1][0][0]-1][1]+
-                                            vertices[entry[1][1][0]-1][1]+
-                                            vertices[entry[1][2][0]-1][1])/3.0, reverse=True)
-            grid.append(collided)"""
     triangles_indexed = ((i, face[:3]) for i, face in enumerate(triangles))
     subdivide_grid(grid_start_x, grid_start_z,
                    0, grid_size_x, 0, grid_size_z, cell_size_x,
@@ -425,19 +404,19 @@ if __name__ == "__main__":
 
 
         neighbours = {}
-        for i, triangle in enumerate(triangles):
-            v1_index, v1_normindex = triangle[0]
-            v2_index, v2_normindex = triangle[1]
-            v3_index, v3_normindex = triangle[2]
+        """for i, triangle in enumerate(triangles):
+            v1_index = triangle[0]
+            v2_index = triangle[1]
+            v3_index = triangle[2]
 
             indices = [v1_index, v2_index, v3_index] # sort the indices to always have them in the same order
             indices.sort()
 
             if i == 0xFFFF:
                 print("Warning: Your collision has a triangle with index 0xFFFF. "
-                      "This might cause unintended side effects related to that specific triangle.")
+                      "This might cause unintended side effects related to that specific triangle.")"""
 
-            """for edge in ((indices[0], indices[1]), (indices[1], indices[2]), (indices[2], indices[0])):
+        """ for edge in ((indices[0], indices[1]), (indices[1], indices[2]), (indices[2], indices[0])):
                 if edge not in neighbours:
                     neighbours[edge] = [i]
                 elif len(neighbours[edge]) == 1:
@@ -447,9 +426,9 @@ if __name__ == "__main__":
                           "neighbour {2} that will be ignored.".format(edge, neighbours[edge], i))"""
 
         for i, triangle in enumerate(triangles):
-            v1_index, v1_normindex = triangle[0]
-            v2_index, v2_normindex = triangle[1]
-            v3_index, v3_normindex = triangle[2]
+            v1_index = triangle[0]
+            v2_index = triangle[1]
+            v3_index = triangle[2]
 
             floor_type = triangle[3]
 
@@ -457,12 +436,10 @@ if __name__ == "__main__":
             v2 = vertices[v2_index-1]
             v3 = vertices[v3_index-1]
 
-
             v1tov2 = create_vector(v1,v2)
             v2tov3 = create_vector(v2,v3)
             v3tov1 = create_vector(v3,v1)
             v1tov3 = create_vector(v1,v3)
-
 
             cross_norm = cross_product(v1tov2, v1tov3)
             #cross_norm = cross_product(v1tov2, v1tov3)
