@@ -208,6 +208,51 @@ def write_float(f, val):
     f.write(pack(">f", val))
 
 
+def subdivide_coordinates(startx, startz, endx, endz):
+    halfx = (startx+endx)/2.0
+    halfz = (startz+endz)/2.0
+    quadrant00 = (startx, startz, halfx, halfz)
+    quadrant10 = (halfx, startz, endx, halfz)
+    quadrant01 = (startx, halfz, halfx, endz)
+    quadrant11 = (halfx, halfz, endx, endz)
+
+    # x ->
+    # 01 11 ^
+    # 00 10 z
+    # Bottom left is (startx,startz), top right is (endx, endz)
+
+    return quadrant00, quadrant10, quadrant01, quadrant11
+
+
+
+def subdivide_cell(cell_start_x, cell_start_z, cell_end_x, cell_end_z, triangles, vertices):
+    quadrants = ([], [], [], [])
+    quadrant_coords = subdivide_coordinates(cell_start_x, cell_start_z,
+                                            cell_end_x, cell_end_z)
+
+    for i, quadrant in enumerate(quadrant_coords):
+        startx, startz, endx, endz = quadrant
+        midx, midz = (startx+endx)/2.0, (startz+endz)/2.0
+        sizex, sizez = endx-startx, endz-startz
+
+        for j, face in triangles:
+            v1_index, v2_index, v3_index = face
+
+            v1 = vertices[v1_index - 1]
+            v2 = vertices[v2_index - 1]
+            v3 = vertices[v3_index - 1]
+
+            if collides(v1, v2, v3,
+                        midx,
+                        midz,
+                        sizex,
+                        sizez):
+                # print(i, "collided")
+                quadrants[i].append((j, face))
+
+    return quadrants, quadrant_coords
+
+
 def subdivide_grid(minx, minz,
                    gridx_start, gridx_end, gridz_start, gridz_end,
                    cell_size, triangles, vertices, result):
@@ -340,6 +385,7 @@ if __name__ == "__main__":
         return (vertices[face[0] - 1][1]+
                 vertices[face[1] - 1][1]+
                 vertices[face[2] - 1][1])/3.0
+
     triangles.sort(key=calc_average_height, reverse=True)
 
     triangles_indexed = ((i, face[:3]) for i, face in enumerate(triangles))
@@ -374,7 +420,16 @@ if __name__ == "__main__":
 
         groups = []
 
-        indices_stored = 0
+        triangle_group_index = 0
+
+        class GridEntry(object):
+            def __init__(self):
+                self.triangles = []
+                self.child_index = 0
+                self.triangle_index = 0
+
+        base_offset = grid_size_x*grid_size_z
+        remaining_entries = []
 
         #for entry in grid:
         for iz in range(grid_size_z):
@@ -382,16 +437,55 @@ if __name__ == "__main__":
             for ix in range(grid_size_x):
                 entry = grid[ix][iz]
                 tricount = len(entry)
-                if tricount >= 120:
-                    raise RuntimeError("Too many triangles in one spot:", tricount)
+                """if tricount >= 120:
+                    raise RuntimeError("Too many triangles in one spot:", tricount)"""
 
-                write_byte(f, tricount)
-                write_byte(f, 0x00)
-                write_ushort(f, 0x0000)
-                write_uint32(f, indices_stored)
+                if tricount > 0:
+                    write_byte(f, 0x00)
+                    write_byte(f, 0x00)
+                    write_ushort(f, base_offset+len(remaining_entries))
+                    write_uint32(f, triangle_group_index) # We can simply reuse the group index
 
-                indices_stored += tricount
-                groups.append(entry)
+                    startx = grid_start_x + ix*cell_size_x
+                    startz = grid_start_z + iz*cell_size_z
+                    endx = startx + cell_size_x
+                    endz = startz + cell_size_z
+
+                    quadrants, quadrant_coords = subdivide_cell(startx, startz, endx, endz, entry, vertices)
+                    has_tris = False
+
+                    for quadrant, coords in zip(quadrants, quadrant_coords):
+                        gridentry = GridEntry()
+                        if len(quadrant) > 0:
+                            has_tris = True
+                        #if len(quadrant) > 30:
+                        #    pass
+                        #    #more_quadrants, more_quadrant_coords = subdivide_cell()
+                        #else:
+                        gridentry.triangles = quadrant
+                        gridentry.triangle_index = triangle_group_index
+                        triangle_group_index += len(quadrant)
+                        remaining_entries.append(gridentry)
+                        groups.append(quadrant)
+                    assert has_tris is True
+
+                else:
+                    write_byte(f, tricount)
+                    write_byte(f, 0x00)
+                    write_ushort(f, 0x0000)
+                    write_uint32(f, triangle_group_index)
+
+                    triangle_group_index += tricount
+                    groups.append(entry)
+
+        for gridentry in remaining_entries:
+            if len(gridentry.triangles) > 120:
+                raise RuntimeError("Too many triangles in a portion of the model")
+
+            write_byte(f, len(gridentry.triangles))
+            write_byte(f, 0x00)
+            write_ushort(f, gridentry.child_index)
+            write_uint32(f, gridentry.triangle_index)
 
         print("written grid")
         tri_indices_offset = f.tell()
