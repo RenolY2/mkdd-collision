@@ -91,12 +91,46 @@ def read_obj(objfile):
     return vertices, faces, normals, (smallest_x, smallest_z, biggest_x, biggest_z)
 
 
+def create_line(start, end):
+    deltax = end[0]-start[0]
+    deltay = end[1]-start[1]
+    return (start, (deltax, deltay), (deltax**2 + deltay**2)**0.5)
+
+
+def point_is_on_line(point, line):
+    start, delta, length = line
+    if delta[0] == delta[1] == 0:
+        return start[0] == point[0] and start[1] == point[1]
+
+    if delta[0] == 0:
+        a1 = None
+    else:
+        a1 = (point[0]-start[0])/delta[0]
+
+    if delta[1] == 0:
+        a2 = None
+    else:
+        a2 = (point[1] - start[1]) / delta[1]
+
+    if a1 is None:
+        return start[0] == point[0] and 0 <= a2 <= length
+    elif a2 is None:
+        return start[1] == point[1] and 0 <= a1 <= length
+    else:
+        return a1 == a2 and 0 <= a1 <= length
+
+
 def collides(face_v1, face_v2, face_v3, box_mid_x, box_mid_z, box_size_x, box_size_z):
     min_x = min(face_v1[0], face_v2[0], face_v3[0]) - box_mid_x
     max_x = max(face_v1[0], face_v2[0], face_v3[0]) - box_mid_x
 
     min_z = min(face_v1[2], face_v2[2], face_v3[2]) - box_mid_z
     max_z = max(face_v1[2], face_v2[2], face_v3[2]) - box_mid_z
+
+    """point1 = (face_v1[0] - box_mid_x, face_v1[2] - box_mid_z)
+    point2 = (face_v2[0] - box_mid_x, face_v2[2] - box_mid_z)
+    point3 = (face_v3[0] - box_mid_x, face_v3[2] - box_mid_z)"""
+
 
     half_x = box_size_x / 2.0
     half_z = box_size_z / 2.0
@@ -105,6 +139,15 @@ def collides(face_v1, face_v2, face_v3, box_mid_x, box_mid_z, box_size_x, box_si
         return False
     if max_z < -half_z or min_z > +half_z:
         return False
+
+    """tri_line1 = create_line(point1, point2)
+    tri_line2 = create_line(point1, point3)
+    tri_line3 = create_line(point2, point3)
+
+    quad_line1 = create_line((-half_x, -half_z), (-half_x, half_z))
+    quad_line2 = create_line((-half_x, -half_z), (half_x, -half_z))
+    quad_line3 = create_line((half_x, half_z), (-half_x, half_z))
+    quad_line4 = create_line((half_x, half_z), (half_x, -half_z))"""
 
     return True
 
@@ -224,7 +267,6 @@ def subdivide_coordinates(startx, startz, endx, endz):
     return quadrant00, quadrant10, quadrant01, quadrant11
 
 
-
 def subdivide_cell(cell_start_x, cell_start_z, cell_end_x, cell_end_z, triangles, vertices):
     quadrants = ([], [], [], [])
     quadrant_coords = subdivide_coordinates(cell_start_x, cell_start_z,
@@ -332,10 +374,25 @@ if __name__ == "__main__":
     parser.add_argument("output", default=None, nargs = '?',
                         help="Output path of the created collision file")
     parser.add_argument("--cell_size", default=1000, type=int,
-                        help="Size of a single cell in the grid. Bigger size results in smaller grid size but higher amount of triangles in a single cell.")
+                        help=("Size of a single cell in the grid. Bigger size results in smaller grid size but higher "
+                              "amount of triangles in a single cell."))
+
+    parser.add_argument("--quadtree_depth", default=2, type=int,
+                        help=("Depth of the quadtree structure that's used for optimizing collision detection. "
+                              "Quadtrees are used to subdivide cells in the grid further when a cell has too many "
+                              "triangles."))
+
+    parser.add_argument("--max_tri_count", default=20, type=int,
+                        help=("The maximum amount of triangles a cell or a leaf of a quadtree "
+                              "is allowed to have before it is subdivided further."))
+    
+    parser.add_argument("--soundfile", default=None, type=str,
+                        help=("Path to sound file that assigns sounds to collision types"))
 
     args = parser.parse_args()
     input_model = args.input
+    ENTRY_MAXTRICOUNT = args.max_tri_count
+    QUADTREE_DEPTH = args.quadtree_depth
 
     base_dir = os.path.dirname(input_model)
 
@@ -343,7 +400,27 @@ if __name__ == "__main__":
         output = input_model + ".bco"
     else:
         output = args.output
-
+    
+    sounds = None 
+    default = None 
+        
+    if args.soundfile is not None:
+        try:
+            sounds = {}
+            with open(args.soundfile, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    line = line.split("#")[0]
+                    floortype, soundentry = line.split("=")
+                    soundval, unk1, unk2 = soundentry.split(",")
+                    if floortype.lower().strip() == "default" and default is None:
+                        default = (int(soundval,16), int(unk1,16), int(unk2,16))
+                    else:
+                        sounds[int(floortype, 16)] = (int(soundval,16), int(unk1,16), int(unk2,16))
+                        
+        except FileNotFoundError as e:
+            print(e)
+        
 
     with open(input_model, "r") as f:
         vertices, triangles, normals, minmax_coords = read_obj(f)
@@ -427,9 +504,11 @@ if __name__ == "__main__":
                 self.triangles = []
                 self.child_index = 0
                 self.triangle_index = 0
+                self.coords = None
 
         base_offset = grid_size_x*grid_size_z
         remaining_entries = []
+
 
         #for entry in grid:
         for iz in range(grid_size_z):
@@ -440,7 +519,7 @@ if __name__ == "__main__":
                 """if tricount >= 120:
                     raise RuntimeError("Too many triangles in one spot:", tricount)"""
 
-                if tricount > 0:
+                if tricount > ENTRY_MAXTRICOUNT:
                     write_byte(f, 0x00)
                     write_byte(f, 0x00)
                     write_ushort(f, base_offset+len(remaining_entries))
@@ -462,6 +541,7 @@ if __name__ == "__main__":
                         #    pass
                         #    #more_quadrants, more_quadrant_coords = subdivide_cell()
                         #else:
+                        gridentry.coords = coords
                         gridentry.triangles = quadrant
                         gridentry.triangle_index = triangle_group_index
                         triangle_group_index += len(quadrant)
@@ -478,17 +558,60 @@ if __name__ == "__main__":
                     triangle_group_index += tricount
                     groups.append(entry)
 
-        for gridentry in remaining_entries:
-            if len(gridentry.triangles) > 120:
-                raise RuntimeError("Too many triangles in a portion of the model")
 
-            write_byte(f, len(gridentry.triangles))
-            write_byte(f, 0x00)
-            write_ushort(f, gridentry.child_index)
-            write_uint32(f, gridentry.triangle_index)
+        offset = 0
 
+        for i in range(QUADTREE_DEPTH):
+            base_offset += len(remaining_entries)
+            new_remaining_entries = []
+            original_length = len(remaining_entries)
+            print("quadtree depth", i, original_length)
+            for gridentry in remaining_entries:
+                if i == QUADTREE_DEPTH - 1 and len(gridentry.triangles) > 120:
+                    print(len(gridentry.triangles))
+                    print(gridentry.coords)
+                    raise RuntimeError("Too many triangles in a portion of the model")
+
+                if i < QUADTREE_DEPTH - 1 and len(gridentry.triangles) > ENTRY_MAXTRICOUNT:
+                    write_byte(f, 0x00) # A grid entry with children has no triangles
+                    write_byte(f, 0x00) # Padding
+                    write_ushort(f, base_offset+len(new_remaining_entries))
+                    write_uint32(f, triangle_group_index)
+
+                    startx, startz, endx, endz = gridentry.coords
+
+                    quadrants, quadrant_coords = subdivide_cell(startx, startz, endx, endz,
+                                                                gridentry.triangles, vertices)
+                    has_tris = False
+
+                    for quadrant, coords in zip(quadrants, quadrant_coords):
+                        gridentry = GridEntry()
+                        if len(quadrant) > 0:
+                            has_tris = True
+                        #if len(quadrant) > 30:
+                        #    pass
+                        #    #more_quadrants, more_quadrant_coords = subdivide_cell()
+                        #else:
+                        gridentry.coords = coords
+                        gridentry.triangles = quadrant
+                        gridentry.triangle_index = triangle_group_index
+                        triangle_group_index += len(quadrant)
+                        new_remaining_entries.append(gridentry)
+                        groups.append(quadrant)
+                    assert has_tris is True
+
+                else:
+                    write_byte(f, len(gridentry.triangles))
+                    write_byte(f, 0x00)
+                    write_ushort(f, gridentry.child_index)
+                    write_uint32(f, gridentry.triangle_index)
+
+            remaining_entries = new_remaining_entries
+
+            offset = original_length
         print("written grid")
         tri_indices_offset = f.tell()
+        print(tri_indices_offset)
 
         for trianglegroup in groups:
             for triangle_index, triangle in trianglegroup:
@@ -518,7 +641,9 @@ if __name__ == "__main__":
                 else:
                     print("Warning: Edge {0} already has neighbours {1}, but there is an additional "
                           "neighbour {2} that will be ignored.".format(edge, neighbours[edge], i))"""
-
+        
+        floor_sound_types = {}
+        
         for i, triangle in enumerate(triangles):
             v1_index = triangle[0]
             v2_index = triangle[1]
@@ -563,7 +688,7 @@ if __name__ == "__main__":
             assert vlist[max_x][0] == max(v1[0], v2[0], v3[0])
             assert vlist[max_z][2] == max(v1[2], v2[2], v3[2])
 
-            indices = [v1_index, v2_index, v3_index] # sort the indices to always have them in the same order
+            indices = [v1_index, v2_index, v3_index]  # sort the indices to always have them in the same order
             indices.sort()
 
             """local_neighbours = []
@@ -594,6 +719,7 @@ if __name__ == "__main__":
             write_short(f, norm_z)
 
             write_ushort(f,floor_type)
+            floor_sound_types[floor_type] = True
 
             write_byte(f, (max_z << 6) | (max_x << 4) | (min_z << 2) | min_x)  # Lookup table for min/max values
             write_byte(f, 0x01)  # Unknown
@@ -620,5 +746,21 @@ if __name__ == "__main__":
         write_uint32(f, tri_offset)  # triangles offset
         write_uint32(f, vertex_offset)  # vertices offset
         write_uint32(f, unknown_offset)  # unknown section offset
+        f.seek(unknown_offset)
+        for soundtype in sorted(floor_sound_types.keys()):
+            write_ushort(f, soundtype)  # floortype
+            
+            if sounds is not None and soundtype in sounds:
+                sound, unk1, unk2 = sounds[soundtype]
+            elif default is not None:
+                sound, unk1, unk2 = default 
+            else:
+                sound, unk1, unk2 = 0x2, 0, 0
+            write_short(f, sound)  # Sound to be played?
+            write_uint32(f, unk1)
+            write_uint32(f, unk2)
+
+        f.seek(0x18)
+        write_ushort(f, len(floor_sound_types))
 
     print("done, file written to", output)
