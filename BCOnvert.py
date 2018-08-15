@@ -617,7 +617,11 @@ if __name__ == "__main__":
             for triangle_index, triangle in trianglegroup:
                 write_ushort(f, triangle_index)
         print("written triangle indices")
+        assert (f.tell() % 4) in (2, 0) 
+        if f.tell() % 4 == 2:
+            write_ushort(f, 0x00) # Padding 
         tri_offset = f.tell()
+        assert tri_offset % 4 == 0
 
 
         neighbours = {}
@@ -733,6 +737,7 @@ if __name__ == "__main__":
 
         vertex_offset = f.tell()
         print("written triangle data")
+        assert f.tell() % 4 == 0
         for x, y, z in vertices:
             write_float(f, x)
             write_float(f, y)
