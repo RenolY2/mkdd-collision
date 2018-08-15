@@ -7,6 +7,7 @@ import subprocess
 from re import match
 from struct import pack, unpack
 from math import floor, ceil
+import math
 
 
 def read_vertex(v_data):
@@ -25,7 +26,7 @@ def read_obj(objfile):
     face_normals = []
     normals = []
 
-    floor_type = 0x100
+    floor_type = None
 
     smallest_x = smallest_z = biggest_x = biggest_z = None
 
@@ -66,7 +67,7 @@ def read_obj(objfile):
             if len(args) != 4:
                 raise RuntimeError("Model needs to be triangulated! Only faces with 3 vertices are supported.")
             v1, v2, v3 = map(read_vertex, args[1:4])
-
+            
             faces.append((v1, v2, v3, floor_type))
 
         elif cmd == "vn":
@@ -83,7 +84,7 @@ def read_obj(objfile):
             if floor_type_match is not None:
                 floor_type = int(floor_type_match.group(2), 16)
             else:
-                floor_type = 0x100
+                floor_type = None
 
             #print("Found material:", matname, "Using floor type:", hex(floor_type))
 
@@ -611,8 +612,6 @@ if __name__ == "__main__":
             offset = original_length
         print("written grid")
         tri_indices_offset = f.tell()
-        print(tri_indices_offset)
-
         for trianglegroup in groups:
             for triangle_index, triangle in trianglegroup:
                 write_ushort(f, triangle_index)
@@ -669,9 +668,11 @@ if __name__ == "__main__":
 
             if cross_norm[0] == cross_norm[1] == cross_norm[2] == 0.0:
                 norm = cross_norm
+                norm_fail = True 
                 print("norm calculation failed")
             else:
                 norm = normalize_vector(cross_norm)
+                norm_fail = False
 
             norm_x = int(round(norm[0], 4) * 10000)
             norm_y = int(round(norm[1], 4) * 10000)
@@ -680,6 +681,17 @@ if __name__ == "__main__":
             midx = (v1[0]+v2[0]+v3[0])/3.0
             midy = (v1[1]+v2[1]+v3[1])/3.0
             midz = (v1[2]+v2[2]+v3[2])/3.0
+            
+            if floor_type is None:
+                if norm_fail:
+                    floor_type = 0x200 # 0x200 is fall-through
+                else:
+                    if abs(round(norm[1], 4)) < 0.01:
+                        floor_type = 0x1200
+                    else:
+                        floor_type = 0x0100
+                
+            
 
             floatval = (-1)*(round(norm[0], 4) * midx + round(norm[1], 4) * midy + round(norm[2], 4) * midz)
 
