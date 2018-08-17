@@ -389,12 +389,20 @@ if __name__ == "__main__":
     
     parser.add_argument("--soundfile", default=None, type=str,
                         help=("Path to sound file that assigns sounds to collision types"))
+                        
+    parser.add_argument("--steep_faces_as_walls", action="store_true",
+                        help="If set, steep faces that have no collision type asigned to them will become walls")
+                        
+    parser.add_argument("--steep_face_angle", default=89.5, type=float,
+                        help=("Minimum angle from the horizontal in degrees a face needs to have to count as a steep face. "
+                              "Value needs to be between 0 and 90")
 
     args = parser.parse_args()
     input_model = args.input
-    ENTRY_MAXTRICOUNT = args.max_tri_count
-    QUADTREE_DEPTH = args.quadtree_depth
-
+    entry_max_tri_count = args.max_tri_count
+    quadtree_depth = args.quadtree_depth
+    steep_faces_as_walls = args.steep_faces_as_walls
+    
     base_dir = os.path.dirname(input_model)
 
     if args.output is None:
@@ -404,7 +412,13 @@ if __name__ == "__main__":
     
     sounds = None 
     default = None 
-        
+    
+    if not (0 <= args.steep_face_angle <= 90):
+        raise RuntimeError("Steep face angle needs to be between 0 and 90!")
+    
+    cos_steep_face_angle = math.cos(math.radians(args.steep_face_angle))
+
+    
     if args.soundfile is not None:
         try:
             sounds = {}
@@ -562,18 +576,18 @@ if __name__ == "__main__":
 
         offset = 0
 
-        for i in range(QUADTREE_DEPTH):
+        for i in range(quadtree_depth):
             base_offset += len(remaining_entries)
             new_remaining_entries = []
             original_length = len(remaining_entries)
             print("quadtree depth", i, original_length)
             for gridentry in remaining_entries:
-                if i == QUADTREE_DEPTH - 1 and len(gridentry.triangles) > 120:
+                if i == quadtree_depth - 1 and len(gridentry.triangles) > 120:
                     print(len(gridentry.triangles))
                     print(gridentry.coords)
                     raise RuntimeError("Too many triangles in a portion of the model")
 
-                if i < QUADTREE_DEPTH - 1 and len(gridentry.triangles) > ENTRY_MAXTRICOUNT:
+                if i < quadtree_depth - 1 and len(gridentry.triangles) > entry_max_tri_count:
                     write_byte(f, 0x00) # A grid entry with children has no triangles
                     write_byte(f, 0x00) # Padding
                     write_ushort(f, base_offset+len(new_remaining_entries))
@@ -589,10 +603,7 @@ if __name__ == "__main__":
                         gridentry = GridEntry()
                         if len(quadrant) > 0:
                             has_tris = True
-                        #if len(quadrant) > 30:
-                        #    pass
-                        #    #more_quadrants, more_quadrant_coords = subdivide_cell()
-                        #else:
+                            
                         gridentry.coords = coords
                         gridentry.triangles = quadrant
                         gridentry.triangle_index = triangle_group_index
@@ -610,6 +621,7 @@ if __name__ == "__main__":
             remaining_entries = new_remaining_entries
 
             offset = original_length
+            
         print("written grid")
         tri_indices_offset = f.tell()
         for trianglegroup in groups:
@@ -686,7 +698,7 @@ if __name__ == "__main__":
                 if norm_fail:
                     floor_type = 0x200 # 0x200 is fall-through
                 else:
-                    if abs(round(norm[1], 4)) < 0.01:
+                    if steep_faces_as_walls and abs(round(norm[1], 4)) < cos_steep_face_angle:
                         floor_type = 0x1200
                     else:
                         floor_type = 0x0100
