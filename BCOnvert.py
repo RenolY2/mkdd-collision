@@ -395,7 +395,7 @@ if __name__ == "__main__":
                         
     parser.add_argument("--steep_face_angle", default=89.5, type=float,
                         help=("Minimum angle from the horizontal in degrees a face needs to have to count as a steep face. "
-                              "Value needs to be between 0 and 90")
+                              "Value needs to be between 0 and 90"))
 
     args = parser.parse_args()
     input_model = args.input
@@ -534,7 +534,7 @@ if __name__ == "__main__":
                 """if tricount >= 120:
                     raise RuntimeError("Too many triangles in one spot:", tricount)"""
 
-                if tricount > ENTRY_MAXTRICOUNT:
+                if tricount > entry_max_tri_count:
                     write_byte(f, 0x00)
                     write_byte(f, 0x00)
                     write_ushort(f, base_offset+len(remaining_entries))
@@ -582,7 +582,7 @@ if __name__ == "__main__":
             original_length = len(remaining_entries)
             print("quadtree depth", i, original_length)
             for gridentry in remaining_entries:
-                if i == quadtree_depth - 1 and len(gridentry.triangles) > 120:
+                if i == quadtree_depth - 1 and len(gridentry.triangles) > 250:
                     print(len(gridentry.triangles))
                     print(gridentry.coords)
                     raise RuntimeError("Too many triangles in a portion of the model")
