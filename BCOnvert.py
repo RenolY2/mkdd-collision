@@ -64,11 +64,24 @@ def read_obj(objfile):
         elif cmd == "f":
             # if it uses more than 3 vertices to describe a face then we panic!
             # no triangulation yet.
-            if len(args) != 4:
-                raise RuntimeError("Model needs to be triangulated! Only faces with 3 vertices are supported.")
-            v1, v2, v3 = map(read_vertex, args[1:4])
+            if len(args) == 5:
+                #raise RuntimeError("Model needs to be triangulated! Only faces with 3 vertices are supported.")
+                v1, v2, v3, v4 = map(read_vertex, args[1:5])
+                #faces.append(((v1[0] - 1, v1[1]), (v3[0] - 1, v3[1]), (v2[0] - 1, v2[1])))
+                #faces.append(((v3[0] - 1, v3[1]), (v1[0] - 1, v1[1]), (v4[0] - 1, v4[1])))
+                faces.append((v1, v2, v3, floor_type))
+                faces.append((v3, v4, v1, floor_type))
+            elif len(args) == 4:
+                v1, v2, v3 = map(read_vertex, args[1:4])
+                #faces.append(((v1[0]-1, v1[1]), (v3[0]-1, v3[1]), (v2[0]-1, v2[1])))
+                faces.append((v1, v2, v3, floor_type))
+            else:
+                raise RuntimeError("Model needs to be triangulated! Only faces with 3 or 4 vertices are supported.")
+            #if len(args) != 4:
+            #    raise RuntimeError("Model needs to be triangulated! Only faces with 3 vertices are supported.")
+            #v1, v2, v3 = map(read_vertex, args[1:4])
             
-            faces.append((v1, v2, v3, floor_type))
+            #faces.append((v1, v2, v3, floor_type))
 
         elif cmd == "vn":
             nx,ny,nz = map(float, args[1:4])
