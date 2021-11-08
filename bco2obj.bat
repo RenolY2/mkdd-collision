@@ -1,2 +1,2 @@
-python "%~dp0bco2obj.py" %1
+python "%~dp0mkdd-collision-reader.py" %1
 pause
