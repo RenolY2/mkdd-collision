@@ -1,2 +1,2 @@
-python "%~dp0mkdd-collision-creator.py" %1
+python "%~dp0mkdd-collision-creator.py" %*
 pause
