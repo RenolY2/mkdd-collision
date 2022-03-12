@@ -1,0 +1,18 @@
+# section 1: the default sound settings
+# format:
+# flag = <setting>, <(sound)> //must have at least one of them
+# each flag can only have one sound setting
+0x0101 = 0x00000001, (0x17, 0x3C, 0x1E)
+0x0102 = 0x00000001
+0x0103 = (0x17, 0x3C, 0x1E)
+
+# section 2: material defaults
+# format:
+# matname = flag, <setting>
+# sound data will be ignored
+
+matname1 = 0x0100, 0x00000001 
+matname2 = 0x0101
+
+
+
