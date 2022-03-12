@@ -1,4 +1,6 @@
 from struct import unpack_from
+from BCOnvert import (normalize_vector, create_vector, cross_product, 
+                        write_float, write_uint32, write_short)
 
 
 def read_array(buffer, offset, length):
@@ -214,7 +216,7 @@ def create_col(f, soundfile, mkdd_collision):
     for floortype in sorted(floortypes.keys()):
         matdata = floortypes[floortype]
         
-        soundfile.write("0x{:04X}=0x{:X}, 0x{:X}, 0x{:X}\n".format(floortype, *matdata))
+        soundfile.write("0x{:04X}=(0x{:X}, 0x{:X}, 0x{:X})\n".format(floortype, *matdata))
             
 if __name__ == "__main__":
     import argparse
