@@ -205,7 +205,7 @@ def create_col(f, soundfile, mkdd_collision):
                         if floor_type>>8 == entry[0] and floor_type & 0xFF == entry[1]:
                             floortypes[floor_type] = entry[2:]
 
-                f.write("usemtl Roadtype_0x{0:04X}_0x{2:08X}\n".format(floor_type, tri.unknown, tri.unknown2))
+                f.write("usemtl Roadtype_0x{0:04X}_0x{1:02X}_0x{2:08X}\n".format(floor_type, tri.unknown, tri.unknown2))
                 lasttype = floor_type
 
             f.write("f {0} {1} {2}\n".format(tri.v1+1,tri.v2+1,tri.v3+1))

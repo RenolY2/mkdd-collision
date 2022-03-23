@@ -27,6 +27,7 @@ def read_obj(objfile):
     normals = []
 
     floor_type = None
+    extra_unknown = None
     extra_settings = None
 
     smallest_x = smallest_z = biggest_x = biggest_z = None
@@ -70,12 +71,12 @@ def read_obj(objfile):
                 v1, v2, v3, v4 = map(read_vertex, args[1:5])
                 #faces.append(((v1[0] - 1, v1[1]), (v3[0] - 1, v3[1]), (v2[0] - 1, v2[1])))
                 #faces.append(((v3[0] - 1, v3[1]), (v1[0] - 1, v1[1]), (v4[0] - 1, v4[1])))
-                faces.append((v1, v2, v3, floor_type, extra_settings))
-                faces.append((v3, v4, v1, floor_type, extra_settings))
+                faces.append((v1, v2, v3, floor_type, extra_unknown, extra_settings))
+                faces.append((v3, v4, v1, floor_type, extra_unknown, extra_settings))
             elif len(args) == 4:
                 v1, v2, v3 = map(read_vertex, args[1:4])
                 #faces.append(((v1[0]-1, v1[1]), (v3[0]-1, v3[1]), (v2[0]-1, v2[1])))
-                faces.append((v1, v2, v3, floor_type, extra_settings))
+                faces.append((v1, v2, v3, floor_type, extra_unknown, extra_settings))
             else:
                 raise RuntimeError("Model needs to be triangulated! Only faces with 3 or 4 vertices are supported.")
             #if len(args) != 4:
@@ -93,20 +94,31 @@ def read_obj(objfile):
 
             matname = " ".join(args[1:])
             print(matname)
-            floor_type_match = match("^(.*?)(0x[0-9a-fA-F]{4})_(0x[0-9a-fA-F]{8})(.*?)$", matname)
+            floor_type_match = match("^(.*?)(0x[0-9a-fA-F]{4})_(0x[0-9a-fA-F]{2})_(0x[0-9a-fA-F]{8})(.*?)$", matname)
             if floor_type_match is not None:
                 floor_type = int(floor_type_match.group(2), 16)
-                extra_settings = int(floor_type_match.group(3), 16)
+                extra_unknown = int(floor_type_match.group(3), 16)
+                extra_settings = int(floor_type_match.group(4), 16)
+                print("found extra unknown", extra_unknown)
                 print("found extra settings", extra_settings)
             else:
-                floor_type_match = match("^(.*?)(0x[0-9a-fA-F]{4})(.*?)$", matname)
-
+                floor_type_match = match("^(.*?)(0x[0-9a-fA-F]{4})_(0x[0-9a-fA-F]{8})(.*?)$", matname)
                 if floor_type_match is not None:
                     floor_type = int(floor_type_match.group(2), 16)
-                    extra_settings = None
+                    extra_unknown = None
+                    extra_settings = int(floor_type_match.group(3), 16)
+                    print("found extra settings", extra_settings)
                 else:
-                    floor_type = None
-                    extra_settings = None
+                    floor_type_match = match("^(.*?)(0x[0-9a-fA-F]{4})(.*?)$", matname)
+
+                    if floor_type_match is not None:
+                        floor_type = int(floor_type_match.group(2), 16)
+                        extra_unknown = None
+                        extra_settings = None
+                    else:
+                        floor_type = None
+                        extra_unknown = None
+                        extra_settings = None
 
             #print("Found material:", matname, "Using floor type:", hex(floor_type))
 
@@ -688,7 +700,8 @@ if __name__ == "__main__":
             v3_index = triangle[2]
 
             floor_type = triangle[3]
-            extra_settings = triangle[4]
+            extra_unknown = triangle[4]
+            extra_settings = triangle[5]
 
             v1 = vertices[v1_index-1]
             v2 = vertices[v2_index-1]
@@ -729,7 +742,9 @@ if __name__ == "__main__":
                         floor_type = 0x1200
                     else:
                         floor_type = 0x0100
-            
+
+            if extra_unknown is None:
+                extra_unknown = 0x01
             if extra_settings is None:
                 extra_settings = 0
                 
@@ -781,7 +796,7 @@ if __name__ == "__main__":
             floor_sound_types[floor_type] = True
 
             write_byte(f, (max_z << 6) | (max_x << 4) | (min_z << 2) | min_x)  # Lookup table for min/max values
-            write_byte(f, 0x01)  # Unknown
+            write_byte(f, extra_unknown)  # Unknown
             
             # Neighbours is bugged atm, can cause some walls to be fall-through
             write_ushort(f, 0xFFFF)#local_neighbours[0]) # Triangle index, 0xFFFF means no triangle reference
