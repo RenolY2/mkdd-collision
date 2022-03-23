@@ -138,8 +138,8 @@ class RacetrackCollision(object):
         self.matentries = []
 
         for i in range(self.entrycount):
-            val1, val2, unk, int1, int2 = unpack_from(">BBHII", f.read(0xC), 0)
-            self.matentries.append((val1, val2, unk, int1, int2))
+            floor_type, unk, int1, int2 = unpack_from(">HHII", f.read(0xC), 0)
+            self.matentries.append((floor_type, unk, int1, int2))
 
 
 
@@ -199,23 +199,18 @@ def create_col(f, soundfile, mkdd_collision):
             #if True:
             #print(i, hex(floor_type),unk1+1,unk2+1,unk3+1, len(mkdd_collision.triangles))
             #fasd.write("{0} {1} {2} {3} {4} {5} {6}\n".format(i, hex(floor_type),unk1+1,unk2+1,unk3+1, len(mkdd_collision.triangles), (v1,v2,v3)))
-            if lasttype != floor_type:
-                if floor_type not in floortypes:
-                    for entry in mkdd_collision.matentries:
-                        if floor_type>>8 == entry[0] and floor_type & 0xFF == entry[1]:
-                            floortypes[floor_type] = entry[2:]
-
+            currenttype = (tri.floor_type, tri.unknown, tri.unknown2)
+            if currenttype != lasttype:
                 f.write("usemtl Roadtype_0x{0:04X}_0x{1:02X}_0x{2:08X}\n".format(floor_type, tri.unknown, tri.unknown2))
-                lasttype = floor_type
+                lasttype = currenttype
 
             f.write("f {0} {1} {2}\n".format(tri.v1+1,tri.v2+1,tri.v3+1))
             i += 1
-    
-    for floortype in sorted(floortypes.keys()):
-        matdata = floortypes[floortype]
-        
-        soundfile.write("0x{:04X}=0x{:X}, 0x{:X}, 0x{:X}\n".format(floortype, *matdata))
-            
+
+    for entry in mkdd_collision.matentries:
+        soundfile.write("0x{:04X}=0x{:X}, 0x{:X}, 0x{:X}\n".format(*entry))
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
