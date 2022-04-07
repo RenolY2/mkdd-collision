@@ -71,7 +71,7 @@ def read_remap_file(remap_file):
                 raise RuntimeWarning("line with identifier " + identifier + " is not valid and will be skipped")
                 continue
             assert( match( "^(0x[0-9a-fA-F]{4})$", more_info[0] ) is not None)
-                     
+            more_info.append( True)
             remap_data[identifier] = more_info
              
         else:
@@ -91,7 +91,7 @@ def read_remap_file(remap_file):
             if flag in remap_data:
                 raise RuntimeWarning("line " + str(i) + " with flag " + flag + " is has already been specified and will be skipped")
                 continue
-            #print(addi_info)
+            addi_info.append(False)
             remap_data[flag] = addi_info
             """
             else:
@@ -195,7 +195,8 @@ def read_obj(objfile, remap_data):
 
             matname = " ".join(args[1:])
             
-            if matname in remap_data:
+            if matname in remap_data and remap_data[matname][-1]:
+                
                 floor_type = int(remap_data[matname][0], 16)
                 extra_settings = int(remap_data[matname][1], 16)
                 #print(matname, floor_type, extra_settings)
@@ -212,8 +213,9 @@ def read_obj(objfile, remap_data):
                         floor_str = floor_type_match.group(2)
                         floor_type = int(floor_str, 16)
                         extra_settings = None
-                        if floor_str in remap_data:
-                            extra_settings = int( remap_data[floor_str][0], 16)
+                        
+                        if floor_str in remap_data and not remap_data[matname][-1]:
+                            extra_settings = int( str( remap_data[floor_str][0] ), 16)
                         
                         
                     else:
