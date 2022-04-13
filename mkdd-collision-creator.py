@@ -198,7 +198,10 @@ def read_obj(objfile, remap_data):
             if matname in remap_data and remap_data[matname][-1]:
                 
                 floor_type = int(remap_data[matname][0], 16)
-                extra_settings = int(remap_data[matname][1], 16)
+                try:
+                    extra_settings = int(remap_data[matname][1], 16)
+                except:
+                    extra_settings = remap_data[matname][1]
                 #print(matname, floor_type, extra_settings)
             else:
                 #print(matname)
