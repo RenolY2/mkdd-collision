@@ -196,6 +196,7 @@ def read_obj(objfile, remap_data):
                 #raise RuntimeError("Model needs to be triangulated! Only faces with 3 vertices are supported.")
                 v1, v2, v3, v4 = map(read_vertex, args[1:5])
                 
+                print(extra_settings)
                 #faces.append(((v1[0] - 1, v1[1]), (v3[0] - 1, v3[1]), (v2[0] - 1, v2[1])))
                 #faces.append(((v3[0] - 1, v3[1]), (v1[0] - 1, v1[1]), (v4[0] - 1, v4[1])))
                 faces.append((v1, v2, v3, floor_type, extra_unknown, extra_settings))
@@ -884,7 +885,7 @@ if __name__ == "__main__":
                 return False
                 
             if extra_settings is None and is_deadzone(floor_type) :
-                extra_settings = 0x101
+                extra_settings = 0x100
             elif extra_settings is None:
                 extra_settings = 0
             
