@@ -96,6 +96,9 @@ def read_remap_file(remap_file):
         else:
             #got a flag
             flag = matname_or_flag.group(1)
+            flag = flag.lower()
+
+            
             addi_info = [0, 1, sound_data]
             #the identifier is just the flag
             settings_match = match("^(0x[0-9a-fA-F]{8})", more_info)
@@ -196,7 +199,7 @@ def read_obj(objfile, remap_data):
                 #raise RuntimeError("Model needs to be triangulated! Only faces with 3 vertices are supported.")
                 v1, v2, v3, v4 = map(read_vertex, args[1:5])
                 
-                print(extra_settings)
+                print("extra setting", extra_settings)
                 #faces.append(((v1[0] - 1, v1[1]), (v3[0] - 1, v3[1]), (v2[0] - 1, v2[1])))
                 #faces.append(((v3[0] - 1, v3[1]), (v1[0] - 1, v1[1]), (v4[0] - 1, v4[1])))
                 faces.append((v1, v2, v3, floor_type, extra_unknown, extra_settings))
@@ -221,8 +224,10 @@ def read_obj(objfile, remap_data):
             assert len(args) >= 2
 
             matname = " ".join(args[1:])
-            
+            matname = matname.lower()
+            #print(matname, matname in remap_data)
             if matname in remap_data and remap_data[matname][-1]:
+                #mat name is defined
                 
                 floor_type = int(remap_data[matname][0], 16)
                 try:
@@ -235,21 +240,36 @@ def read_obj(objfile, remap_data):
                     extra_settings = remap_data[matname][2]
 
                 #print(matname, floor_type, extra_settings)
+            elif matname in remap_data:
+                floor_type = int(matname, 16)
+                try:
+                    extra_unknown = int(remap_data[matname][1], 16)
+                except:
+                    extra_unknown = remap_data[matname][1]
+                try:
+                    extra_settings = int(remap_data[matname][0], 16)
+                except:
+                    extra_settings = remap_data[matname][0]
+                #print("extra stuff", matname, extra_settings, extra_unknown)
+            
             else:
+                #like a roadtype
                 assert len(args) >= 2
 
                 matname = " ".join(args[1:])
-                print(matname)
+                #print("matnam only from obj", matname)
                 floor_type_match = match("^(.*?)(0x[0-9a-fA-F]{4})_(0x[0-9a-fA-F]{2})_(0x[0-9a-fA-F]{8})(.*?)$", matname)
                 if floor_type_match is not None:
+                    #an full roadtype
                     floor_type = int(floor_type_match.group(2), 16)
                     extra_unknown = int(floor_type_match.group(3), 16)
                     extra_settings = int(floor_type_match.group(4), 16)
                     print("found extra unknown", extra_unknown)
                     print("found extra settings", extra_settings)
-                else:
+                else:           
                     floor_type_match = match("^(.*?)(0x[0-9a-fA-F]{4})_(0x[0-9a-fA-F]{8})(.*?)$", matname)
                     if floor_type_match is not None:
+                        #just extra settings
                         floor_type = int(floor_type_match.group(2), 16)
                         extra_unknown = None
                         extra_settings = int(floor_type_match.group(3), 16)
@@ -258,6 +278,7 @@ def read_obj(objfile, remap_data):
                         floor_type_match = match("^(.*?)(0x[0-9a-fA-F]{4})(.*?)$", matname)
 
                         if floor_type_match is not None:
+                            #just the thing
                             floor_type = int(floor_type_match.group(2), 16)
                             extra_unknown = None
                             extra_settings = None
@@ -877,16 +898,10 @@ if __name__ == "__main__":
                     else:
                         floor_type = 0x0100
                 """
-            def is_deadzone(floor_type):
-                if floor_type & 0x0A00 != 0:
-                    return True
-                elif floor_type & 0x0F00 != 0:
-                    return True
-                return False
                 
-            if extra_settings is None and is_deadzone(floor_type) :
-                extra_settings = 0x100
-            elif extra_settings is None:
+                
+
+            if extra_settings is None:
                 extra_settings = 0
             
             if extra_unknown is None:
