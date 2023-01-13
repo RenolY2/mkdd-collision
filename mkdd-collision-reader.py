@@ -205,10 +205,10 @@ def create_col(f, soundfile, mkdd_collision):
 
             f.write("f {0} {1} {2}\n".format(tri.v1+1,tri.v2+1,tri.v3+1))
             i += 1
-    
+
     for entry in mkdd_collision.matentries:
         soundfile.write("0x{:04X}=(0x{:X}, 0x{:X}, 0x{:X})\n".format(*entry))
-            
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()

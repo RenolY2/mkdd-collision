@@ -203,7 +203,8 @@ def read_obj(objfile, remap_data):
                 #faces.append(((v1[0] - 1, v1[1]), (v3[0] - 1, v3[1]), (v2[0] - 1, v2[1])))
                 #faces.append(((v3[0] - 1, v3[1]), (v1[0] - 1, v1[1]), (v4[0] - 1, v4[1])))
                 faces.append((v1, v2, v3, floor_type, extra_unknown, extra_settings))
-                faces.append((v3, v4, v1, floor_type, extra_unknonw, extra_settings))
+                faces.append((v3, v4, v1, floor_type, extra_unknown, extra_settings))
+
             elif len(args) == 4:
                 v1, v2, v3 = map(read_vertex, args[1:4])
                 #faces.append(((v1[0]-1, v1[1]), (v3[0]-1, v3[1]), (v2[0]-1, v2[1])))
@@ -224,7 +225,7 @@ def read_obj(objfile, remap_data):
             assert len(args) >= 2
 
             matname = " ".join(args[1:])
-            matname = matname.lower()
+
             #print(matname, matname in remap_data)
             if matname in remap_data and remap_data[matname][-1]:
                 #mat name is defined
@@ -259,6 +260,16 @@ def read_obj(objfile, remap_data):
                 matname = " ".join(args[1:])
                 #print("matnam only from obj", matname)
                 floor_type_match = match("^(.*?)(0x[0-9a-fA-F]{4})_(0x[0-9a-fA-F]{2})_(0x[0-9a-fA-F]{8})(.*?)$", matname)
+
+                if floor_type_match is not None:
+                    floor_type = int(floor_type_match.group(2), 16)
+                    extra_unknown = int(floor_type_match.group(3), 16)
+                    extra_settings = int(floor_type_match.group(4), 16)
+                    print("found extra unknown", extra_unknown)
+                    print("found extra settings", extra_settings)
+                else:
+                    floor_type_match = match("^(.*?)(0x[0-9a-fA-F]{4})_(0x[0-9a-fA-F]{8})(.*?)$", matname)
+
                 if floor_type_match is not None:
                     #an full roadtype
                     floor_type = int(floor_type_match.group(2), 16)
@@ -889,17 +900,6 @@ if __name__ == "__main__":
             
             if floor_type is None:
                 continue
-                """
-                if norm_fail:
-                    floor_type = 0x200 # 0x200 is wall
-                else:
-                    if steep_faces_as_walls and abs(round(norm[1], 4)) < cos_steep_face_angle:
-                        floor_type = 0x1200
-                    else:
-                        floor_type = 0x0100
-                """
-                
-                
 
             if extra_settings is None:
                 extra_settings = 0
@@ -955,9 +955,14 @@ if __name__ == "__main__":
             write_byte(f, (max_z << 6) | (max_x << 4) | (min_z << 2) | min_x)  # Lookup table for min/max values
             write_byte(f, extra_unknown)  # Unknown
 
-            write_ushort(f, 0xFFFF)  #local_neighbours[0]) # Triangle index, 0xFFFF means no triangle reference
-            write_ushort(f, 0xFFFF)  #local_neighbours[1]) # Triangle index
-            write_ushort(f, 0xFFFF)  #local_neighbours[2]) # Triangle index
+            # Neighbours is bugged atm, can cause some walls to be fall-through
+            write_ushort(f, 0xFFFF)#local_neighbours[0]) # Triangle index, 0xFFFF means no triangle reference
+            write_ushort(f, 0xFFFF) #local_neighbours[1]) # Triangle index
+            write_ushort(f, 0xFFFF) #local_neighbours[2]) # Triangle index
+            #write_ushort(f, local_neighbours[0]) # Triangle index, 0xFFFF means no triangle reference
+            #write_ushort(f, local_neighbours[1]) # Triangle index
+            #write_ushort(f, local_neighbours[2]) # Triangle index
+
             write_uint32(f, extra_settings) 
             end = f.tell()
             assert (end-start) == 0x24
