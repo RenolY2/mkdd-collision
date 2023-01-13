@@ -265,8 +265,6 @@ def read_obj(objfile, remap_data):
                     floor_type = int(floor_type_match.group(2), 16)
                     extra_unknown = int(floor_type_match.group(3), 16)
                     extra_settings = int(floor_type_match.group(4), 16)
-                    print("found extra unknown", extra_unknown)
-                    print("found extra settings", extra_settings)
                 else:
                     floor_type_match = match("^(.*?)(0x[0-9a-fA-F]{4})_(0x[0-9a-fA-F]{8})(.*?)$", matname)
 
@@ -275,8 +273,6 @@ def read_obj(objfile, remap_data):
                     floor_type = int(floor_type_match.group(2), 16)
                     extra_unknown = int(floor_type_match.group(3), 16)
                     extra_settings = int(floor_type_match.group(4), 16)
-                    print("found extra unknown", extra_unknown)
-                    print("found extra settings", extra_settings)
                 else:           
                     floor_type_match = match("^(.*?)(0x[0-9a-fA-F]{4})_(0x[0-9a-fA-F]{8})(.*?)$", matname)
                     if floor_type_match is not None:
@@ -284,7 +280,6 @@ def read_obj(objfile, remap_data):
                         floor_type = int(floor_type_match.group(2), 16)
                         extra_unknown = None
                         extra_settings = int(floor_type_match.group(3), 16)
-                        print("found extra settings", extra_settings)
                     else:
                         floor_type_match = match("^(.*?)(0x[0-9a-fA-F]{4})(.*?)$", matname)
 
@@ -603,6 +598,9 @@ if __name__ == "__main__":
     parser.add_argument("--remap_file", default=None, type=str,
                         help=("Path to file that assigns additional information to materials"))
                         
+    parser.add_argument("--soundfile", default=None, type=str,
+                        help=("Path to file that assigns additional information to materials"))
+                        
     parser.add_argument("--steep_faces_as_walls", action="store_true",
                         help="If set, steep faces that have no collision type asigned to them will become walls")
                         
@@ -635,6 +633,22 @@ if __name__ == "__main__":
     if args.remap_file is not None:
         remap_data = read_remap_file(args.remap_file)
 
+    if args.soundfile is not None:
+        try:
+            sounds = {}
+            with open(args.soundfile, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    line = line.split("#")[0]
+                    floortype, soundentry = line.split("=")
+                    soundval, unk1, unk2 = soundentry.split(",")
+                    if floortype.lower().strip() == "default" and default is None:
+                        default = (int(soundval,16), int(unk1,16), int(unk2,16))
+                    else:
+                        sounds[int(floortype, 16)] = (int(soundval,16), int(unk1,16), int(unk2,16))
+                    
+        except FileNotFoundError as e:
+            print(e)
 
     with open(input_model, "r") as f:
         vertices, triangles, normals, minmax_coords = read_obj(f, remap_data)
@@ -990,6 +1004,10 @@ if __name__ == "__main__":
             
             if soundtype in remap_data and remap_data[soundtype][1] is not None:
                 sound, unk1, unk2 = remap_data[soundtype][1]
+            elif sounds is not None and soundtype in sounds:
+                sound, unk1, unk2 = sounds[soundtype]
+            elif default is not None:
+                sound, unk1, unk2 = default 
             else:
                 sound, unk1, unk2 = 0x2, 0, 0
             write_short(f, sound)  # Sound to be played?
