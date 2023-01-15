@@ -26,13 +26,13 @@ def read_uint8(buffer, offset):
 
 class BCOTriangle(object):
     def __init__(self):
-        pass 
-    
+        pass
+
     @classmethod
     def from_array(cls, buffer, offset, i):
         triangle_data = read_array(buffer, offset+i*0x24, 0x24)
         tri = cls()
-        
+
         tri.v1 = read_uint32(triangle_data, 0x00)
         tri.v2 = read_uint32(triangle_data, 0x04)
         tri.v3 = read_uint32(triangle_data, 0x08)
@@ -46,11 +46,11 @@ class BCOTriangle(object):
         tri.n1 = read_uint16(triangle_data, 0x1A)
         tri.n2 = read_uint16(triangle_data, 0x1C)
         tri.n3 = read_uint16(triangle_data, 0x1E)
-        
+
         tri.unknown2 = read_uint32(triangle_data, 0x20)
-        
+
         return tri
-        
+
 
 class RacetrackCollision(object):
     def __init__(self):
@@ -163,7 +163,7 @@ def get_grid_entries(data, index, offset, limit, f, indent, gottem):
             gottem[nextindex+i] = True
             get_grid_entries(data, nextindex+i, offset, limit, f, indent+1, gottem)
 
-def create_col(f, soundfile, mkdd_collision):
+def create_col(f, soundfile, mkdd_collision, soundfile_format = False):
     f.write("o somecustomtrack\n")
     for v_x, v_y, v_z in mkdd_collision.vertices:
         f.write("v {0} {1} {2}\n".format(v_x, v_y, v_z))
@@ -184,7 +184,7 @@ def create_col(f, soundfile, mkdd_collision):
                 f.write("f {0} {1} {2}\n".format(v1+1,v2+1,v3+1))"""
     i = 1
     floortypes = {}
-    
+
     #with open("neighbours2.txt", "w") as fasd:
     if True:
         for tri in mkdd_collision.triangles:
@@ -205,9 +205,13 @@ def create_col(f, soundfile, mkdd_collision):
 
             f.write("f {0} {1} {2}\n".format(tri.v1+1,tri.v2+1,tri.v3+1))
             i += 1
-
-    for entry in mkdd_collision.matentries:
-        soundfile.write("0x{:04X}=(0x{:X}, 0x{:X}, 0x{:X})\n".format(*entry))
+    
+    if soundfile_format:
+        for entry in mkdd_collision.matentries:
+            soundfile.write("0x{:04X}=0x{:X}, 0x{:X}, 0x{:X}\n".format(*entry))
+    else:
+        for entry in mkdd_collision.matentries:
+            soundfile.write("0x{:04X}=(0x{:X}, 0x{:X}, 0x{:X})\n".format(*entry))
 
 if __name__ == "__main__":
     import argparse
@@ -217,9 +221,10 @@ if __name__ == "__main__":
                         help="Filepath to bco file to be converted to obj")
     parser.add_argument("output", default=None, nargs = '?',
                         help="Output path of the created collision file")
-                        
+    parser.add_argument("--remap_format", action="store_true",
+                        help="Output path of the created collision file")
+
     args = parser.parse_args()
-    
     #with open("F:/Wii games/MKDDModdedFolder/P-GM4E/files/Course/luigi2/luigi_course.bco", "rb") as f:
     with open(args.input, "rb") as f:
         #with open("F:/Wii games/MKDDModdedFolder/P-GM4E/files/Course/daisy/daisy_course.bco", "rb") as f:
@@ -230,8 +235,9 @@ if __name__ == "__main__":
         output = args.input + ".obj"
     else:
         output = args.output
-        
+
+    txt_dump = "_remap.txt" if args.remap_format else "_soundfile.txt"
     with open(output, "w") as f:
-        with open(output+"_remap.txt", "w") as g: 
-            create_col(f, g, col)
+        with open(output+txt_dump, "w") as g:
+            create_col(f, g, col, not args.remap_format)
     print("Written obj to", output)
