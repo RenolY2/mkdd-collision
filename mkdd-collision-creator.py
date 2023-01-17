@@ -43,7 +43,7 @@ def read_remap_file(remap_file):
         equal_sign = line.find("=")
         if equal_sign == -1:
             continue
-        identifier = line[0:equal_sign].strip()
+        identifier = line[0:equal_sign].strip().lower()
         more_info = line[equal_sign + 1 : line_end].strip(", (")
         #print(identifier)
         matname_or_flag = match("^(0x[0-9a-fA-F]{4})?$", identifier)
@@ -97,8 +97,7 @@ def read_remap_file(remap_file):
             #got a flag
             flag = matname_or_flag.group(1)
             flag = flag.lower()
-
-            
+         
             addi_info = [0, 1, sound_data]
             #the identifier is just the flag
             settings_match = match("^(0x[0-9a-fA-F]{8})", more_info)
@@ -199,7 +198,6 @@ def read_obj(objfile, remap_data):
                 #raise RuntimeError("Model needs to be triangulated! Only faces with 3 vertices are supported.")
                 v1, v2, v3, v4 = map(read_vertex, args[1:5])
                 
-                print("extra setting", extra_settings)
                 #faces.append(((v1[0] - 1, v1[1]), (v3[0] - 1, v3[1]), (v2[0] - 1, v2[1])))
                 #faces.append(((v3[0] - 1, v3[1]), (v1[0] - 1, v1[1]), (v4[0] - 1, v4[1])))
                 faces.append((v1, v2, v3, floor_type, extra_unknown, extra_settings))
@@ -225,11 +223,8 @@ def read_obj(objfile, remap_data):
             assert len(args) >= 2
 
             matname = " ".join(args[1:])
-
-            #print(matname, matname in remap_data)
+            matname = matname.lower()
             if matname in remap_data and remap_data[matname][-1]:
-                #mat name is defined
-                
                 floor_type = int(remap_data[matname][0], 16)
                 try:
                     extra_unknown = int(remap_data[matname][1], 16)
@@ -240,7 +235,7 @@ def read_obj(objfile, remap_data):
                 except:
                     extra_settings = remap_data[matname][2]
 
-                #print(matname, floor_type, extra_settings)
+                print(matname, floor_type, extra_settings)
             elif matname in remap_data:
                 floor_type = int(matname, 16)
                 try:
@@ -251,14 +246,15 @@ def read_obj(objfile, remap_data):
                     extra_settings = int(remap_data[matname][0], 16)
                 except:
                     extra_settings = remap_data[matname][0]
-                #print("extra stuff", matname, extra_settings, extra_unknown)
             
             else:
                 #like a roadtype
                 assert len(args) >= 2
 
                 matname = " ".join(args[1:])
-                #print("matnam only from obj", matname)
+                matname = matname.lower()
+                
+                #first, check for full matname - roadtype, camera, and extra settings
                 floor_type_match = match("^(.*?)(0x[0-9a-fA-F]{4})_(0x[0-9a-fA-F]{2})_(0x[0-9a-fA-F]{8})(.*?)$", matname)
 
                 if floor_type_match is not None:
@@ -266,21 +262,18 @@ def read_obj(objfile, remap_data):
                     extra_unknown = int(floor_type_match.group(3), 16)
                     extra_settings = int(floor_type_match.group(4), 16)
                 else:
+                    #next, check for roadtype and extra settings only
                     floor_type_match = match("^(.*?)(0x[0-9a-fA-F]{4})_(0x[0-9a-fA-F]{8})(.*?)$", matname)
-
-                if floor_type_match is not None:
-                    #an full roadtype
-                    floor_type = int(floor_type_match.group(2), 16)
-                    extra_unknown = int(floor_type_match.group(3), 16)
-                    extra_settings = int(floor_type_match.group(4), 16)
-                else:           
-                    floor_type_match = match("^(.*?)(0x[0-9a-fA-F]{4})_(0x[0-9a-fA-F]{8})(.*?)$", matname)
+                    
                     if floor_type_match is not None:
-                        #just extra settings
+                        print("matched on the floortype")
                         floor_type = int(floor_type_match.group(2), 16)
-                        extra_unknown = None
+                        if floor_type in remap_data and remap_data[floor_type]:
+                            extra_unknown = int(floor_type_match.group(3), 16)
+                        else:
+                            extra_unknown = None
                         extra_settings = int(floor_type_match.group(3), 16)
-                    else:
+                    else:           
                         floor_type_match = match("^(.*?)(0x[0-9a-fA-F]{4})(.*?)$", matname)
 
                         if floor_type_match is not None:
@@ -1001,6 +994,7 @@ if __name__ == "__main__":
 
         for soundtype in sorted(floor_sound_types.keys()):
             write_ushort(f, soundtype)  # floortype
+
             
             if soundtype in remap_data and remap_data[soundtype][1] is not None:
                 sound, unk1, unk2 = remap_data[soundtype][1]
